@@ -19,6 +19,7 @@
       @mouseup="handleMouseUp"
       @wheel="handleWheel"
     >
+      <v-layer ref="backgroundLayer"></v-layer>
       <v-layer ref="gridLayer">
         <v-line
           v-for="line in gridLines"
@@ -84,7 +85,7 @@ export default defineComponent({
     const floorLayer = ref(null);
     const patternLayer = ref(null);
     const materialsMenu = ref(null);
-    const backgroundLayer = ref(new Konva.Layer());
+    const backgroundLayer = ref(null);
 
     const patterns = ref([]);
     const availablePatterns = ref([
@@ -124,8 +125,11 @@ export default defineComponent({
       stageConfig.value.height = window.innerHeight - 100;
       showSizeWarning.value = window.innerWidth < 768;
       // Redraw grid when stage size changes
-      if (gridLayer.value) {
-        gridLayer.value.batchDraw();
+      if (gridLayer.value && gridLayer.value.getNode) {
+        gridLayer.value.getNode().batchDraw();
+      }
+      if (backgroundLayer.value && backgroundLayer.value.getNode) {
+        backgroundLayer.value.getNode().batchDraw();
       }
     };
 
@@ -152,8 +156,9 @@ export default defineComponent({
       window.addEventListener('resize', updateStageSize);
       updateStageSize();
       console.log('Stage ref:', stage.value);
-      if (stage.value && backgroundLayer.value) {
-        const konvaStage = stage.value.getStage();
+      if (stage.value && stage.value.getNode) {
+        const konvaStage = stage.value.getNode();
+        backgroundLayer.value = new Konva.Layer();
         konvaStage.add(backgroundLayer.value);
       }
     });
@@ -180,6 +185,7 @@ export default defineComponent({
         placePattern(pos);
       } else {
         startDrawingWall(pos);
+        isDrawing.value = true;
       }
     };
 
@@ -187,22 +193,27 @@ export default defineComponent({
       if (!isDrawing.value) return;
       const pos = e.target.getStage().getPointerPosition();
       if (currentLine.value) {
-        currentLine.value.points = currentLine.value.points.slice(0, 2).concat([pos.x, pos.y]);
+        const newPoints = currentLine.value.points().slice(0, 2).concat([pos.x, pos.y]);
+        currentLine.value.points(newPoints);
+        floorLayer.value.batchDraw();
       }
     };
 
     const handleMouseUp = () => {
       isDrawing.value = false;
+      if (currentLine.value) {
+        walls.value.push(currentLine.value);
+        currentLine.value = null;
+      }
     };
 
     const startDrawingWall = (pos) => {
-      isDrawing.value = true;
-      currentLine.value = {
+      currentLine.value = new Konva.Line({
         points: [pos.x, pos.y, pos.x, pos.y],
         stroke: '#ffffff', // White color for visibility on dark background
         strokeWidth: 2,
-      };
-      walls.value.push(currentLine.value);
+      });
+      floorLayer.value.add(currentLine.value);
     };
 
     const placePattern = (pos) => {
@@ -374,19 +385,40 @@ export default defineComponent({
         backgroundImage.src = dataUrl;
         backgroundImage.onload = () => {
           if (stage.value && backgroundLayer.value) {
-            stage.value.width(width);
-            stage.value.height(height);
+            const stageWidth = stage.value.width();
+            const stageHeight = stage.value.height();
+            const scale = Math.min(stageWidth / width, stageHeight / height);
+            const x = (stageWidth - width * scale) / 2;
+            const y = (stageHeight - height * scale) / 2;
+
             backgroundLayer.value.destroyChildren();
-            backgroundLayer.value.add(
-              new Konva.Image({
-                x: 0,
-                y: 0,
-                image: backgroundImage,
-                width: width,
-                height: height,
-              })
-            );
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(backgroundImage, 0, 0);
+            const imageData = ctx.getImageData(0, 0, width, height);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+              data[i] = 255 - data[i];     // red
+              data[i + 1] = 255 - data[i + 1]; // green
+              data[i + 2] = 255 - data[i + 2]; // blue
+            }
+            ctx.putImageData(imageData, 0, 0);
+
+            const imageNode = new Konva.Image({
+              x: x,
+              y: y,
+              image: canvas,
+              width: width * scale,
+              height: height * scale,
+            });
+            backgroundLayer.value.add(imageNode);
             backgroundLayer.value.batchDraw();
+
+            // Enable dragging for the stage
+            stage.value.draggable(true);
+
             console.log('PDF background set successfully');
           } else {
             console.error('Stage or backgroundLayer is not available');
