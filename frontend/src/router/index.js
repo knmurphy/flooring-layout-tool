@@ -9,9 +9,10 @@ const routes = [
     component: HomePage,  // Updated component reference
   },
   {
-    path: '/workspace',
+    path: '/workspace/:fileId',
     name: 'DrawingWorkspace',
     component: DrawingWorkspace,
+    props: true
   },
 ];
 

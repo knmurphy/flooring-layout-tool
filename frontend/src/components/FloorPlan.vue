@@ -363,6 +363,11 @@ export default defineComponent({
       }
     };
 
+    const setPDFBackground = (file) => {
+      // We'll implement PDF to image conversion and setting as background here
+      console.log('Setting PDF as background:', file.name);
+    };
+
     // Make sure to expose the toggleColorInversion method
     defineExpose({ exportAsPNG, toggleDarkMode });
 
@@ -389,6 +394,7 @@ export default defineComponent({
       exportAsPNG,
       stage,
       toggleDarkMode,
+      setPDFBackground,
     };
   },
 });
