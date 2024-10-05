@@ -1,8 +1,13 @@
 <template>
-  <div class="floor-plan-container">
+  <div class="floor-plan-container dark-mode">
     <div class="materials-menu" :style="{ top: menuTop + 'px', left: menuLeft + 'px' }" ref="materialsMenu">
       <div class="menu-handle" @mousedown="startDragging">Materials</div>
-      <button v-for="pattern in availablePatterns" :key="pattern.name" @click="selectPattern(pattern)">
+      <button 
+        v-for="pattern in availablePatterns" 
+        :key="pattern.name" 
+        @click="selectPattern(pattern)"
+        :class="{ 'selected': selectedPattern === pattern }"
+      >
         {{ pattern.name }}
       </button>
     </div>
@@ -14,19 +19,25 @@
       @mouseup="handleMouseUp"
       @wheel="handleWheel"
     >
+      <v-layer ref="gridLayer">
+        <v-line
+          v-for="line in gridLines"
+          :key="line.id"
+          :config="line"
+        />
+      </v-layer>
       <v-layer ref="floorLayer">
         <v-line
           v-for="(wall, index) in walls"
-          :key="`wall-${index}`"
+          :key="'wall-' + index"
           :config="wall"
         />
       </v-layer>
       <v-layer ref="patternLayer">
         <v-rect
           v-for="(pattern, index) in patterns"
-          :key="`pattern-${index}`"
+          :key="'pattern-' + index"
           :config="pattern"
-          @dragmove="handleDragMove"
         />
       </v-layer>
     </v-stage>
@@ -35,20 +46,21 @@
     </div>
     <button @click="saveLayout">Save Layout</button>
     <button @click="loadLayout">Load Layout</button>
+    <button @click="exportAsPNG">Export as PNG</button>
   </div>
 </template>
 
 <script>
-import { defineComponent, ref, watchEffect, onMounted, onUnmounted } from 'vue'
-import { Stage, Layer, Rect, Line } from 'vue-konva'
+import { defineComponent, ref, watchEffect, onMounted, onUnmounted, computed } from 'vue'
+import { Stage, Layer, Line, Rect } from 'vue-konva'
 
 export default defineComponent({
   name: 'FloorPlan',
   components: {
     VStage: Stage,
     VLayer: Layer,
-    VRect: Rect,
     VLine: Line,
+    VRect: Rect,
   },
   setup() {
     const stageConfig = ref({
@@ -78,10 +90,38 @@ export default defineComponent({
       { name: 'Vinyl', fill: '#708090', width: 55, height: 55 },
     ]);
 
+    const gridSize = 20; // Size of each grid cell
+    const gridLayer = ref(null);
+
+    const gridLines = computed(() => {
+      const lines = [];
+      for (let i = 0; i <= stageConfig.value.width; i += gridSize) {
+        lines.push({
+          id: `vertical-${i}`,
+          points: [i, 0, i, stageConfig.value.height],
+          stroke: '#3a3a3a',
+          strokeWidth: 1,
+        });
+      }
+      for (let i = 0; i <= stageConfig.value.height; i += gridSize) {
+        lines.push({
+          id: `horizontal-${i}`,
+          points: [0, i, stageConfig.value.width, i],
+          stroke: '#3a3a3a',
+          strokeWidth: 1,
+        });
+      }
+      return lines;
+    });
+
     const updateStageSize = () => {
       stageConfig.value.width = window.innerWidth;
       stageConfig.value.height = window.innerHeight - 100;
-      showSizeWarning.value = window.innerWidth < 768; // Show warning for screens smaller than 768px
+      showSizeWarning.value = window.innerWidth < 768;
+      // Redraw grid when stage size changes
+      if (gridLayer.value) {
+        gridLayer.value.batchDraw();
+      }
     };
 
     const startDragging = () => {
@@ -138,7 +178,6 @@ export default defineComponent({
       const pos = e.target.getStage().getPointerPosition();
       if (currentLine.value) {
         currentLine.value.points = currentLine.value.points.slice(0, 2).concat([pos.x, pos.y]);
-        floorLayer.value?.batchDraw();
       }
     };
 
@@ -150,7 +189,7 @@ export default defineComponent({
       isDrawing.value = true;
       currentLine.value = {
         points: [pos.x, pos.y, pos.x, pos.y],
-        stroke: 'black',
+        stroke: '#ffffff', // White color for visibility on dark background
         strokeWidth: 2,
       };
       walls.value.push(currentLine.value);
@@ -160,12 +199,11 @@ export default defineComponent({
       if (selectedPattern.value) {
         const newPattern = {
           ...selectedPattern.value,
-          x: Math.round(pos.x / 20) * 20,
-          y: Math.round(pos.y / 20) * 20,
+          x: Math.round(pos.x / gridSize) * gridSize,
+          y: Math.round(pos.y / gridSize) * gridSize,
           draggable: true,
         };
         patterns.value.push(newPattern);
-        patternLayer.value?.batchDraw();
       }
     };
 
@@ -249,6 +287,59 @@ export default defineComponent({
       }
     };
 
+    const exportAsPNG = () => {
+      if (stage.value) {
+        // Temporarily change stage background to white
+        const originalBg = stage.value.container().style.backgroundColor;
+        stage.value.container().style.backgroundColor = 'white';
+
+        // Invert colors of all shapes
+        invertColors(true);
+
+        // Create a data URL of the stage
+        const dataURL = stage.value.toDataURL();
+
+        // Revert stage background and shape colors
+        stage.value.container().style.backgroundColor = originalBg;
+        invertColors(false);
+
+        // Create a link element and trigger download
+        const link = document.createElement('a');
+        link.download = 'floor-plan.png';
+        link.href = dataURL;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    };
+
+    const invertColors = (invert) => {
+      const invertLayer = (layer) => {
+        layer.children.forEach((shape) => {
+          if (shape.attrs.stroke) {
+            shape.attrs.stroke = invert ? invertColor(shape.attrs.stroke) : invertColor(shape.attrs.stroke);
+          }
+          if (shape.attrs.fill) {
+            shape.attrs.fill = invert ? invertColor(shape.attrs.fill) : invertColor(shape.attrs.fill);
+          }
+        });
+      };
+
+      invertLayer(floorLayer.value);
+      invertLayer(patternLayer.value);
+      stage.value.batchDraw();
+    };
+
+    const invertColor = (color) => {
+      // Simple color inversion logic - you might need a more sophisticated approach
+      if (color.startsWith('#')) {
+        color = color.slice(1);
+        const invertedColor = (Number(`0x${color}`) ^ 0xffffff).toString(16).padStart(6, '0');
+        return `#${invertedColor}`;
+      }
+      return color;
+    };
+
     return {
       stageConfig,
       showSizeWarning,
@@ -268,6 +359,8 @@ export default defineComponent({
       saveLayout,
       loadLayout,
       selectedPattern,
+      gridLines,
+      exportAsPNG,
     };
   },
 });
@@ -277,24 +370,29 @@ export default defineComponent({
 .floor-plan-container {
   position: relative;
   width: 100%;
-  height: calc(100vh - 60px); /* Subtract header height */
+  height: calc(100vh - 60px);
   overflow: hidden;
+}
+
+.floor-plan-container.dark-mode {
+  background-color: #1e1e1e;
+  color: #ffffff;
 }
 
 .materials-menu {
   position: absolute;
-  background-color: white;
-  border: 1px solid #ccc;
+  background-color: #2c2c2c;
+  border: 1px solid #4a4a4a;
   padding: 10px;
   border-radius: 5px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
   z-index: 1000;
 }
 
 .menu-handle {
   cursor: move;
   padding: 5px;
-  background-color: #f0f0f0;
+  background-color: #3a3a3a;
   margin-bottom: 5px;
   text-align: center;
   font-weight: bold;
@@ -305,34 +403,45 @@ export default defineComponent({
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background-color: rgba(255, 255, 255, 0.9);
+  background-color: rgba(46, 46, 46, 0.9);
   padding: 20px;
   border-radius: 5px;
   text-align: center;
   z-index: 1001;
 }
 
-#container {
-  border: 1px solid #ccc;
-  width: 100%;
-  height: 100%;
-}
-
-.pattern-selector {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  display: flex;
-  flex-direction: column;
-}
-
-.pattern-selector button {
-  margin-bottom: 5px;
+button {
+  background-color: #4a4a4a;
+  color: #ffffff;
+  border: none;
   padding: 5px 10px;
+  margin: 5px;
+  border-radius: 3px;
+  cursor: pointer;
 }
 
-button.active {
-  background-color: #4CAF50;
-  color: white;
+button:hover {
+  background-color: #5a5a5a;
+}
+
+.materials-menu button {
+  display: block;
+  width: 100%;
+  margin-bottom: 5px;
+  padding: 5px;
+  background-color: #4a4a4a;
+  color: #ffffff;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.materials-menu button.selected {
+  background-color: #6a6a6a;
+  font-weight: bold;
+}
+
+.materials-menu button:hover {
+  background-color: #5a5a5a;
 }
 </style>
