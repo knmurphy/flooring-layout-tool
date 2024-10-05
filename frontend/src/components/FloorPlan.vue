@@ -294,49 +294,45 @@ export default defineComponent({
     };
 
     const invertColors = () => {
+      isDarkMode.value = !isDarkMode.value;
+      
       const invertLayer = (layer) => {
-        if (layer && layer.children) {
-          layer.children.forEach((child) => {
-            if (typeof child.fill === 'function') {
-              const fill = child.fill();
-              if (fill) {
-                const rgb = Konva.Util.getRGB(fill);
-                child.fill(`rgb(${isDarkMode.value ? 255 - rgb.r : rgb.r}, ${isDarkMode.value ? 255 - rgb.g : rgb.g}, ${isDarkMode.value ? 255 - rgb.b : rgb.b})`);
-              }
+        layer.children.forEach((child) => {
+          if (typeof child.fill === 'function') {
+            const fill = child.fill();
+            if (fill) {
+              const rgb = Konva.Util.getRGB(fill);
+              child.fill(`rgb(${255 - rgb.r}, ${255 - rgb.g}, ${255 - rgb.b})`);
             }
-            if (typeof child.stroke === 'function') {
-              const stroke = child.stroke();
-              if (stroke) {
-                const rgb = Konva.Util.getRGB(stroke);
-                child.stroke(`rgb(${isDarkMode.value ? 255 - rgb.r : rgb.r}, ${isDarkMode.value ? 255 - rgb.g : rgb.g}, ${isDarkMode.value ? 255 - rgb.b : rgb.b})`);
-              }
+          }
+          if (typeof child.stroke === 'function') {
+            const stroke = child.stroke();
+            if (stroke) {
+              const rgb = Konva.Util.getRGB(stroke);
+              child.stroke(`rgb(${255 - rgb.r}, ${255 - rgb.g}, ${255 - rgb.b})`);
             }
-          });
-        }
+          }
+        });
       };
 
       if (stage.value) {
-        stage.value.children.forEach(invertLayer);
-      }
-      if (patternLayer.value) {
-        invertLayer(patternLayer.value);
-      }
-      
-      if (stage.value) {
+        stage.value.children.forEach((child) => {
+          if (child.getChildren) {
+            invertLayer(child);
+          }
+        });
+        stage.value.container().style.backgroundColor = isDarkMode.value ? '#2c2c2c' : '#ffffff';
         stage.value.batchDraw();
-      }
-
-      // Update stage background
-      if (stage.value) {
-        stage.value.getStage().container().style.backgroundColor = isDarkMode.value ? '#2c2c2c' : '#ffffff';
       }
     };
 
     const exportAsPNG = () => {
       if (stage.value) {
-        // Invert colors if in dark mode
-        if (isDarkMode.value) {
-          invertColors(true);
+        const currentIsDarkMode = isDarkMode.value;
+        
+        // Temporarily switch to light mode if currently in dark mode
+        if (currentIsDarkMode) {
+          invertColors();
         }
 
         // Export the stage as a data URL
@@ -350,9 +346,9 @@ export default defineComponent({
         link.click();
         document.body.removeChild(link);
 
-        // Revert colors if they were inverted
-        if (isDarkMode.value) {
-          invertColors(false);
+        // Switch back to dark mode if it was in dark mode before
+        if (currentIsDarkMode) {
+          invertColors();
         }
       }
     };
