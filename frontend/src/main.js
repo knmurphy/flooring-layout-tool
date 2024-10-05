@@ -1,5 +1,9 @@
-import { createApp } from 'vue';
-import App from './App.vue';
-import router from './router';
+import { createApp } from 'vue'
+import App from './App.vue'
+import router from './router'
+import VueKonva from 'vue-konva'
 
-createApp(App).use(router).mount('#app');
+const app = createApp(App)
+app.use(router)
+app.use(VueKonva)
+app.mount('#app')

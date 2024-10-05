@@ -7,7 +7,7 @@
 
 <script>
 export default {
-  name: 'Home',
+  name: 'HomePage',  // Changed from 'Home' to 'HomePage'
 };
 </script>
 

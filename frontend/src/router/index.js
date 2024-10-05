@@ -1,12 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import Home from '../views/Home.vue';
+import HomePage from '../views/Home.vue';  // Updated import name
 import DrawingWorkspace from '../views/DrawingWorkspace.vue';
 
 const routes = [
   {
     path: '/',
-    name: 'Home',
-    component: Home,
+    name: 'home',
+    component: HomePage,  // Updated component reference
   },
   {
     path: '/workspace',
