@@ -1,0 +1,64 @@
+# Node.js
+node_modules/
+yarn-error.log
+yarn-debug.log*
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Vue.js
+.DS_Store
+.vscode/
+.env
+.env.*
+dist/
+public/
+
+# Rust
+/target
+**/*.rs.bk
+
+# Cargo
+/.cargo/
+Cargo.lock
+
+# IDE Specific
+.idea/
+*.iml
+*.sublime*
+
+# MacOS Specific
+.DS_Store
+
+# Docker
+**/Dockerfile
+**/docker-compose.yml
+**/.dockerignore
+
+# Others
+*.swp
+*.bak
+*.tmp
+*~
+*.cache
+*.log
+
+# Temporary files
+/tmp/
+**/tmp
+
+# Output from test runners
+coverage/
+
+# Git specific
+.git/
+!.gitignore
+
+# System Files
+Thumbs.db
+$RECYCLE.BIN/

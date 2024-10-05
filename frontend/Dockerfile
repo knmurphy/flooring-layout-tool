@@ -11,11 +11,8 @@ RUN yarn install
 # Copy the rest of the application code
 COPY . .
 
-# Build the frontend application
-RUN yarn build
-
 # Expose the port the app runs on
-EXPOSE 3000
+EXPOSE 8080
 
 # Start the application in development mode
-CMD ["yarn", "start"]
+CMD ["yarn", "serve"]

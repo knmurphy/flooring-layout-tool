@@ -16,7 +16,7 @@ services:
     build:
       context: ./frontend
     ports:
-      - "3000:3000"
+      - "8080:8080"
     volumes:
       - ./frontend:/usr/src/frontend
-    command: ["yarn", "start"]
+    command: ["yarn", "serve"]
