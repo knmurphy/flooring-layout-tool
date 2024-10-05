@@ -44,15 +44,17 @@
     <div v-if="showSizeWarning" class="size-warning">
       For the best experience, please use a larger screen size.
     </div>
-    <button @click="saveLayout">Save Layout</button>
-    <button @click="loadLayout">Load Layout</button>
-    <button @click="exportAsPNG">Export as PNG</button>
+    <div class="controls">
+      <button @click="exportAsPNG">Export as PNG</button>
+      <button @click="toggleDarkMode">Toggle Dark Mode</button>
+    </div>
   </div>
 </template>
 
 <script>
-import { defineComponent, ref, watchEffect, onMounted, onUnmounted, computed } from 'vue'
+import { defineComponent, ref, watchEffect, onMounted, onUnmounted, computed, defineExpose } from 'vue'
 import { Stage, Layer, Line, Rect } from 'vue-konva'
+import Konva from 'konva'
 
 export default defineComponent({
   name: 'FloorPlan',
@@ -63,9 +65,12 @@ export default defineComponent({
     VRect: Rect,
   },
   setup() {
+    const isDarkMode = ref(true); // Assume dark mode is active by default
+
     const stageConfig = ref({
       width: window.innerWidth,
-      height: window.innerHeight - 100, // Subtract space for the header
+      height: window.innerHeight,
+      backgroundColor: isDarkMode.value ? '#2c2c2c' : '#ffffff'
     });
     const showSizeWarning = ref(false);
     const menuTop = ref(60); // Initial top position below the header
@@ -146,6 +151,7 @@ export default defineComponent({
     onMounted(() => {
       window.addEventListener('resize', updateStageSize);
       updateStageSize();
+      console.log('Stage ref:', stage.value);
     });
 
     onUnmounted(() => {
@@ -287,58 +293,79 @@ export default defineComponent({
       }
     };
 
+    const invertColors = () => {
+      const invertLayer = (layer) => {
+        if (layer && layer.children) {
+          layer.children.forEach((child) => {
+            if (typeof child.fill === 'function') {
+              const fill = child.fill();
+              if (fill) {
+                const rgb = Konva.Util.getRGB(fill);
+                child.fill(`rgb(${isDarkMode.value ? 255 - rgb.r : rgb.r}, ${isDarkMode.value ? 255 - rgb.g : rgb.g}, ${isDarkMode.value ? 255 - rgb.b : rgb.b})`);
+              }
+            }
+            if (typeof child.stroke === 'function') {
+              const stroke = child.stroke();
+              if (stroke) {
+                const rgb = Konva.Util.getRGB(stroke);
+                child.stroke(`rgb(${isDarkMode.value ? 255 - rgb.r : rgb.r}, ${isDarkMode.value ? 255 - rgb.g : rgb.g}, ${isDarkMode.value ? 255 - rgb.b : rgb.b})`);
+              }
+            }
+          });
+        }
+      };
+
+      if (stage.value) {
+        stage.value.children.forEach(invertLayer);
+      }
+      if (patternLayer.value) {
+        invertLayer(patternLayer.value);
+      }
+      
+      if (stage.value) {
+        stage.value.batchDraw();
+      }
+
+      // Update stage background
+      if (stage.value) {
+        stage.value.getStage().container().style.backgroundColor = isDarkMode.value ? '#2c2c2c' : '#ffffff';
+      }
+    };
+
     const exportAsPNG = () => {
       if (stage.value) {
-        // Temporarily change stage background to white
-        const originalBg = stage.value.container().style.backgroundColor;
-        stage.value.container().style.backgroundColor = 'white';
+        // Invert colors if in dark mode
+        if (isDarkMode.value) {
+          invertColors(true);
+        }
 
-        // Invert colors of all shapes
-        invertColors(true);
+        // Export the stage as a data URL
+        const dataURL = stage.value.toDataURL({ pixelRatio: 2 });
 
-        // Create a data URL of the stage
-        const dataURL = stage.value.toDataURL();
-
-        // Revert stage background and shape colors
-        stage.value.container().style.backgroundColor = originalBg;
-        invertColors(false);
-
-        // Create a link element and trigger download
+        // Create a link element and trigger the download
         const link = document.createElement('a');
         link.download = 'floor-plan.png';
         link.href = dataURL;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+
+        // Revert colors if they were inverted
+        if (isDarkMode.value) {
+          invertColors(false);
+        }
       }
     };
 
-    const invertColors = (invert) => {
-      const invertLayer = (layer) => {
-        layer.children.forEach((shape) => {
-          if (shape.attrs.stroke) {
-            shape.attrs.stroke = invert ? invertColor(shape.attrs.stroke) : invertColor(shape.attrs.stroke);
-          }
-          if (shape.attrs.fill) {
-            shape.attrs.fill = invert ? invertColor(shape.attrs.fill) : invertColor(shape.attrs.fill);
-          }
-        });
-      };
-
-      invertLayer(floorLayer.value);
-      invertLayer(patternLayer.value);
-      stage.value.batchDraw();
+    // Function to toggle dark mode (you can call this when user switches themes)
+    const toggleDarkMode = () => {
+      isDarkMode.value = !isDarkMode.value;
+      invertColors();
+      // No need to manually update stage background, it should be handled by invertColors
     };
 
-    const invertColor = (color) => {
-      // Simple color inversion logic - you might need a more sophisticated approach
-      if (color.startsWith('#')) {
-        color = color.slice(1);
-        const invertedColor = (Number(`0x${color}`) ^ 0xffffff).toString(16).padStart(6, '0');
-        return `#${invertedColor}`;
-      }
-      return color;
-    };
+    // Make sure to expose the toggleColorInversion method
+    defineExpose({ exportAsPNG, toggleDarkMode });
 
     return {
       stageConfig,
@@ -361,6 +388,8 @@ export default defineComponent({
       selectedPattern,
       gridLines,
       exportAsPNG,
+      stage,
+      toggleDarkMode,
     };
   },
 });
@@ -443,5 +472,17 @@ button:hover {
 
 .materials-menu button:hover {
   background-color: #5a5a5a;
+}
+
+.controls {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000; /* Ensure buttons are above the canvas */
+}
+
+button {
+  /* ... existing button styles ... */
 }
 </style>
