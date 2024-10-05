@@ -45,14 +45,10 @@ export default {
     };
 
     const loadPDF = (file) => {
-      // We'll implement PDF loading logic here in the next step
-      console.log('Loading PDF:', file.name);
-      // For now, just pass the file to the FloorPlan component
       floorPlan.value.setPDFBackground(file);
     };
 
     onMounted(() => {
-      // Check if a file was passed from the HomePage
       if (route.params.fileId && route.state && route.state.file) {
         loadPDF(route.state.file);
       }

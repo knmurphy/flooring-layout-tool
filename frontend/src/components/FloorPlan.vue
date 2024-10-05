@@ -55,6 +55,7 @@
 import { defineComponent, ref, watchEffect, onMounted, onUnmounted, computed, defineExpose } from 'vue'
 import { Stage, Layer, Line, Rect } from 'vue-konva'
 import Konva from 'konva'
+import { convertPDFToImage } from '../utils/pdfUtils'
 
 export default defineComponent({
   name: 'FloorPlan',
@@ -66,26 +67,25 @@ export default defineComponent({
   },
   setup() {
     const isDarkMode = ref(true); // Start in dark mode by default
-
+    const showSizeWarning = ref(false);
     const stageConfig = ref({
       width: window.innerWidth,
       height: window.innerHeight,
       backgroundColor: isDarkMode.value ? '#2c2c2c' : '#ffffff'
     });
-    const showSizeWarning = ref(false);
     const menuTop = ref(60); // Initial top position below the header
     const menuLeft = ref(10);
     const isDrawing = ref(false);
     const currentLine = ref(null);
     const selectedPattern = ref(null);
     const isDragging = ref(false);
-
+    const walls = ref([]);
     const stage = ref(null);
     const floorLayer = ref(null);
     const patternLayer = ref(null);
     const materialsMenu = ref(null);
+    const backgroundLayer = ref(new Konva.Layer());
 
-    const walls = ref([]);
     const patterns = ref([]);
     const availablePatterns = ref([
       { name: 'Hardwood', fill: '#8B4513', width: 50, height: 50 },
@@ -152,6 +152,10 @@ export default defineComponent({
       window.addEventListener('resize', updateStageSize);
       updateStageSize();
       console.log('Stage ref:', stage.value);
+      if (stage.value && backgroundLayer.value) {
+        const konvaStage = stage.value.getStage();
+        konvaStage.add(backgroundLayer.value);
+      }
     });
 
     onUnmounted(() => {
@@ -363,9 +367,34 @@ export default defineComponent({
       }
     };
 
-    const setPDFBackground = (file) => {
-      // We'll implement PDF to image conversion and setting as background here
-      console.log('Setting PDF as background:', file.name);
+    const setPDFBackground = async (file) => {
+      try {
+        const { dataUrl, width, height } = await convertPDFToImage(file);
+        const backgroundImage = new Image();
+        backgroundImage.src = dataUrl;
+        backgroundImage.onload = () => {
+          if (stage.value && backgroundLayer.value) {
+            stage.value.width(width);
+            stage.value.height(height);
+            backgroundLayer.value.destroyChildren();
+            backgroundLayer.value.add(
+              new Konva.Image({
+                x: 0,
+                y: 0,
+                image: backgroundImage,
+                width: width,
+                height: height,
+              })
+            );
+            backgroundLayer.value.batchDraw();
+            console.log('PDF background set successfully');
+          } else {
+            console.error('Stage or backgroundLayer is not available');
+          }
+        };
+      } catch (error) {
+        console.error('Error setting PDF background:', error);
+      }
     };
 
     // Make sure to expose the toggleColorInversion method
@@ -395,6 +424,7 @@ export default defineComponent({
       stage,
       toggleDarkMode,
       setPDFBackground,
+      backgroundLayer,
     };
   },
 });
