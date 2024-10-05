@@ -1,21 +1,26 @@
 <template>
-  <v-app>
-    <router-view></router-view>
-  </v-app>
+  <el-config-provider :locale="locale" :size="size" :z-index="zIndex" :namespace="namespace">
+    <MainLayout>
+      <router-view></router-view>
+    </MainLayout>
+  </el-config-provider>
 </template>
 
 <script>
-export default {
-  name: 'App'
-}
+import { defineComponent } from 'vue'
+import MainLayout from './layouts/MainLayout.vue'
+
+export default defineComponent({
+  name: 'App',
+  components: {
+    MainLayout
+  }
+})
 </script>
 
-<style scoped>
-#app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
+<style>
+body.dark-mode {
+  background-color: #1c1c1c;
+  color: #ffffff;
 }
 </style>

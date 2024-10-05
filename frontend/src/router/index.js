@@ -1,29 +1,24 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import HomePage from '../views/Home.vue';  // Updated import name
+import Home from '../views/Home.vue';
 import DrawingWorkspace from '../views/DrawingWorkspace.vue';
 
 const routes = [
   {
     path: '/',
-    name: 'HomePage',
-    component: HomePage,  // Updated component reference
-  },
-  {
-    path: '/workspace/:fileId',
-    name: 'DrawingWorkspace',
-    component: DrawingWorkspace,
-    props: true
+    name: 'Home',
+    component: Home
   },
   {
     path: '/drawing-workspace/:fileId',
     name: 'DrawingWorkspace',
-    component: DrawingWorkspace
-  },
+    component: DrawingWorkspace,
+    props: true
+  }
 ];
 
 const router = createRouter({
   history: createWebHistory(process.env.BASE_URL),
-  routes,
+  routes
 });
 
 export default router;

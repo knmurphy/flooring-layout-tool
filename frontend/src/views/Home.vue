@@ -1,69 +1,93 @@
 <template>
   <div class="home-page">
-    <h1>Welcome to the Flooring Layout Tool</h1>
-    <v-file-input
-      v-model="selectedFile"
-      label="Select PDF Floor Plan"
-      accept="application/pdf"
-      @change="handleFileSelect"
-    ></v-file-input>
+    <el-row justify="center" align="middle" class="full-height">
+      <el-col :xs="24" :sm="20" :md="16" :lg="12" :xl="8">
+        <h1 class="home-title">Welcome to the Flooring Layout Tool</h1>
+        <el-upload
+          class="upload-demo"
+          drag
+          action="#"
+          :auto-upload="false"
+          :on-change="handleFileSelect"
+          accept="application/pdf"
+        >
+          <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+          <div class="el-upload__text">
+            Drop PDF file here or <em>click to upload</em>
+          </div>
+        </el-upload>
+      </el-col>
+    </el-row>
   </div>
 </template>
 
 <script>
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter } from 'vue-router'
+import { UploadFilled } from '@element-plus/icons-vue'
+import { openDB } from 'idb'
+import { ElMessage } from 'element-plus'
 
 export default {
-  name: 'HomePage',  // Changed from 'Home' to 'HomePage'
+  name: 'HomePage',
+  components: { UploadFilled },
   setup() {
-    const router = useRouter();
-    const selectedFile = ref(null);
+    const router = useRouter()
 
-    const handleFileSelect = async () => {
-      if (selectedFile.value) {
+    const handleFileSelect = async (file) => {
+      if (file.raw) {
         const fileId = Date.now().toString();
-        // Store the file in localStorage (you might want to use a more robust solution for larger files)
-        localStorage.setItem(`pdf_${fileId}`, await fileToBase64(selectedFile.value));
-        router.push({ name: 'DrawingWorkspace', params: { fileId } });
+        try {
+          const db = await openDB('PDFStorage', 1, {
+            upgrade(db) {
+              db.createObjectStore('pdfs');
+            },
+          });
+          await db.put('pdfs', file.raw, fileId);
+          localStorage.setItem(`pdf_${fileId}`, file.raw.name); // Store only the filename
+          router.push({ name: 'DrawingWorkspace', params: { fileId } });
+        } catch (error) {
+          console.error('Error storing PDF:', error);
+          ElMessage.error('Failed to store the PDF. Please try a smaller file.');
+        }
       }
-    };
-
-    const fileToBase64 = (file) => {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = (error) => reject(error);
-      });
-    };
+    }
 
     return {
-      selectedFile,
       handleFileSelect
-    };
+    }
   }
 }
 </script>
 
 <style scoped>
-.home {
+.home-page {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.home-title {
   text-align: center;
-  margin-top: 50px;
+  margin-bottom: 2rem;
+  font-size: 2rem;
 }
 
-.load-pdf-btn {
-  padding: 10px 20px;
+.upload-demo {
+  width: 100%;
+}
+
+:deep(.el-upload-dragger) {
+  width: 100%;
+  height: 200px;
+}
+
+:deep(.el-icon--upload) {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+:deep(.el-upload__text) {
   font-size: 16px;
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-}
-
-.load-pdf-btn:hover {
-  background-color: #45a049;
 }
 </style>
