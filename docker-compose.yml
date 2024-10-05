@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "3030:3030"
+    volumes:
+      - ./backend:/usr/src/backend
+    command: ["cargo", "run"]
+    depends_on:
+      - frontend
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/usr/src/frontend
+    command: ["yarn", "start"]
