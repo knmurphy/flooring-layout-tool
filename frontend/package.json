@@ -8,6 +8,8 @@
     "build": "vue-cli-service build"
   },
   "dependencies": {
+    "@vue/cli-service": "^5.0.8",
+    "konva": "^9.3.15",
     "vue": "^3.5.11",
     "vue-konva": "^3.1.2",
     "vue-router": "^4.0.13"
