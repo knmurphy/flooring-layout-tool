@@ -6,21 +6,22 @@
       </div>
     </template>
     <el-menu class="tool-menu">
-      <el-menu-item index="1" @click="setTool('rectangle')">
-        <el-icon><Crop /></el-icon>
-        <span>Rectangle</span>
-      </el-menu-item>
-      <el-menu-item index="2" @click="setTool('polygon')">
-        <el-icon><Star /></el-icon>
-        <span>Polygon</span>
+      <el-menu-item 
+        v-for="tool in tools" 
+        :key="tool.name" 
+        @click="setTool(tool.name)"
+        :class="{ 'is-active': selectedTool === tool.name }"
+      >
+        <el-icon><component :is="tool.icon" /></el-icon>
+        <span>{{ tool.label }}</span>
       </el-menu-item>
     </el-menu>
-    <MaterialPalette />
+    <MaterialPalette @patternSelected="onPatternSelected" />
   </el-card>
 </template>
 
 <script>
-import { defineComponent } from 'vue'
+import { defineComponent, ref } from 'vue'
 import { Crop, Star } from '@element-plus/icons-vue'
 import MaterialPalette from './MaterialPalette.vue'
 
@@ -31,14 +32,27 @@ export default defineComponent({
     Star,
     MaterialPalette
   },
-  setup() {
-    const setTool = (selectedTool) => {
-      console.log('Selected tool:', selectedTool)
-      // Implement tool selection logic
+  setup(props, { emit }) {
+    const tools = [
+      { name: 'rectangle', label: 'Rectangle', icon: 'Crop' },
+      { name: 'polygon', label: 'Polygon', icon: 'Star' },
+    ]
+    const selectedTool = ref('')
+
+    const setTool = (tool) => {
+      selectedTool.value = tool
+      emit('toolSelected', tool)
+    }
+
+    const onPatternSelected = (pattern) => {
+      emit('patternSelected', pattern)
     }
 
     return {
-      setTool
+      tools,
+      selectedTool,
+      setTool,
+      onPatternSelected
     }
   }
 })
@@ -50,5 +64,9 @@ export default defineComponent({
   top: 10px;
   left: 10px;
   z-index: 1000;
+}
+
+.is-active {
+  background-color: #ecf5ff;
 }
 </style>

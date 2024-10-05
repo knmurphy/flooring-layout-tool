@@ -11,8 +11,7 @@ const routes = [
   {
     path: '/drawing-workspace/:fileId',
     name: 'DrawingWorkspace',
-    component: DrawingWorkspace,
-    props: true
+    component: DrawingWorkspace
   }
 ];
 

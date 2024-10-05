@@ -1,5 +1,5 @@
 <template>
-  <el-config-provider :locale="locale" :size="size" :z-index="zIndex" :namespace="namespace">
+  <el-config-provider>
     <MainLayout>
       <router-view></router-view>
     </MainLayout>

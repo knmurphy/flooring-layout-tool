@@ -1,12 +1,12 @@
 <template>
   <div class="drawing-workspace">
-    <FloorPlan :fileId="fileId" />
-    <Toolbox />
+    <FloorPlan :fileId="fileId" :selectedTool="selectedTool" :selectedPattern="selectedPattern" />
+    <Toolbox @toolSelected="onToolSelected" @patternSelected="onPatternSelected" />
   </div>
 </template>
 
 <script>
-import { defineComponent, ref, onMounted } from 'vue'
+import { defineComponent, computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import FloorPlan from '@/components/FloorPlan.vue'
 import Toolbox from '@/components/Toolbox.vue'
@@ -19,14 +19,24 @@ export default defineComponent({
   },
   setup() {
     const route = useRoute()
-    const fileId = ref(null)
+    const fileId = computed(() => route.params.fileId || '')
+    const selectedTool = ref('')
+    const selectedPattern = ref({ name: 'Default', fill: '#cccccc' })
 
-    onMounted(() => {
-      fileId.value = route.params.fileId
-    })
+    const onToolSelected = (tool) => {
+      selectedTool.value = tool
+    }
+
+    const onPatternSelected = (pattern) => {
+      selectedPattern.value = pattern
+    }
 
     return {
-      fileId
+      fileId,
+      selectedTool,
+      selectedPattern,
+      onToolSelected,
+      onPatternSelected
     }
   }
 })
