@@ -1,5 +1,5 @@
 <template>
-  <div class="floor-plan-container dark-mode">
+  <div class="floor-plan-container" :class="{ 'dark-mode': isDarkMode }">
     <div class="materials-menu" :style="{ top: menuTop + 'px', left: menuLeft + 'px' }" ref="materialsMenu">
       <div class="menu-handle" @mousedown="startDragging">Materials</div>
       <button 
@@ -65,7 +65,7 @@ export default defineComponent({
     VRect: Rect,
   },
   setup() {
-    const isDarkMode = ref(true); // Assume dark mode is active by default
+    const isDarkMode = ref(true); // Start in dark mode by default
 
     const stageConfig = ref({
       width: window.innerWidth,
@@ -357,7 +357,10 @@ export default defineComponent({
     const toggleDarkMode = () => {
       isDarkMode.value = !isDarkMode.value;
       invertColors();
-      // No need to manually update stage background, it should be handled by invertColors
+      // Update the stage background color
+      if (stage.value) {
+        stage.value.container().style.backgroundColor = isDarkMode.value ? '#2c2c2c' : '#ffffff';
+      }
     };
 
     // Make sure to expose the toggleColorInversion method
