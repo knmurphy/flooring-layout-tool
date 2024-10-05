@@ -1,7 +1,11 @@
 import { createApp } from 'vue'
 import App from './App.vue'
-import { createVuetify } from 'vuetify'
+import router from './router'
+import VueKonva from 'vue-konva'
+
+// Vuetify
 import 'vuetify/styles'
+import { createVuetify } from 'vuetify'
 import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
 
@@ -10,4 +14,8 @@ const vuetify = createVuetify({
   directives,
 })
 
-createApp(App).use(vuetify).mount('#app')
+createApp(App)
+  .use(router)
+  .use(vuetify)
+  .use(VueKonva)
+  .mount('#app')

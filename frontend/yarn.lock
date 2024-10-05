@@ -4091,7 +4091,7 @@ klona@^2.0.5:
   resolved "https://registry.npmjs.org/klona/-/klona-2.0.6.tgz"
   integrity sha512-dhG34DXATL5hSxJbIexCft8FChFXtmskoZYnoPWjXQuebWYCNkVeV3KkGegCK9CP1oswI/vQibS2GY7Em/sJJA==
 
-konva@>7:
+konva@^9.3.15, konva@>7:
   version "9.3.15"
   resolved "https://registry.npmjs.org/konva/-/konva-9.3.15.tgz"
   integrity sha512-6jceV1u75a41Fwky7HIg7Xr092sn9g+emE/F4KrkNey9j5IwM/No91z4g13P9kbh0NePzC20YvfyGVS5EzliUA==
@@ -6078,7 +6078,7 @@ vue-hot-reload-api@^2.3.0:
   resolved "https://registry.npmjs.org/vue-hot-reload-api/-/vue-hot-reload-api-2.3.4.tgz"
   integrity sha512-BXq3jwIagosjgNVae6tkHzzIk6a8MHFtzAdwhnV5VlvPTFxDCvIttgSiHWjdGoTJvXtmRu5HacExfdarRcFhog==
 
-vue-konva@^3.0.2:
+vue-konva@^3.1.2:
   version "3.1.2"
   resolved "https://registry.npmjs.org/vue-konva/-/vue-konva-3.1.2.tgz"
   integrity sha512-/CyZSZjmKNED3Pt4XJFmAwv2PAYKBN1X/6AkYKIj+zSnJGnRZ17S+0Q+UzMgziyZ9Qg6yb25ol8XvkAJckHOCA==
@@ -6123,10 +6123,10 @@ vue@*, "vue@^2 || ^3.2.13", vue@^3, vue@^3.2.0, vue@^3.2.13, vue@^3.3.0, vue@3.5
     "@vue/server-renderer" "3.5.11"
     "@vue/shared" "3.5.11"
 
-vuetify@^3.7.0-beta.1:
-  version "3.7.0-beta.1"
-  resolved "https://registry.npmjs.org/vuetify/-/vuetify-3.7.0-beta.1.tgz"
-  integrity sha512-F6a+pSG7dLrU28sGlR8r4WMuBsLMprOsDpaywGopNrGk351Hs4AAhx/y88ROGUEf28yAPShSM86bPnD30xNyDw==
+vuetify@^3.0.0:
+  version "3.7.2"
+  resolved "https://registry.npmjs.org/vuetify/-/vuetify-3.7.2.tgz"
+  integrity sha512-q0WTcRG977+a9Dqhb8TOaPm+Xmvj0oVhnBJhAdHWFSov3HhHTTxlH2nXP/GBTXZuuMHDbBeIWFuUR2/1Fx0PPw==
 
 watchpack@^2.4.0, watchpack@^2.4.1:
   version "2.4.2"

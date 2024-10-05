@@ -5,7 +5,7 @@ import DrawingWorkspace from '../views/DrawingWorkspace.vue';
 const routes = [
   {
     path: '/',
-    name: 'home',
+    name: 'HomePage',
     component: HomePage,  // Updated component reference
   },
   {
@@ -13,6 +13,11 @@ const routes = [
     name: 'DrawingWorkspace',
     component: DrawingWorkspace,
     props: true
+  },
+  {
+    path: '/drawing-workspace/:fileId',
+    name: 'DrawingWorkspace',
+    component: DrawingWorkspace
   },
 ];
 

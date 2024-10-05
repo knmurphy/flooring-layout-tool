@@ -1,14 +1,12 @@
 <template>
-  <div class="home">
+  <div class="home-page">
     <h1>Welcome to the Flooring Layout Tool</h1>
-    <button @click="openFileInput" class="load-pdf-btn">Load plans to draw on</button>
-    <input 
-      type="file" 
-      ref="fileInput" 
-      @change="handleFileSelect" 
-      accept="application/pdf" 
-      style="display: none;"
-    >
+    <v-file-input
+      v-model="selectedFile"
+      label="Select PDF Floor Plan"
+      accept="application/pdf"
+      @change="handleFileSelect"
+    ></v-file-input>
   </div>
 </template>
 
@@ -17,36 +15,35 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 export default {
-  name: 'HomePage',
+  name: 'HomePage',  // Changed from 'Home' to 'HomePage'
   setup() {
     const router = useRouter();
-    const fileInput = ref(null);
+    const selectedFile = ref(null);
 
-    const openFileInput = () => {
-      fileInput.value.click();
-    };
-
-    const handleFileSelect = (event) => {
-      const file = event.target.files[0];
-      if (file && file.type === 'application/pdf') {
-        // Navigate to drawing workspace with the selected file
-        router.push({ 
-          name: 'DrawingWorkspace', 
-          params: { fileId: Date.now().toString() },
-          state: { file }
-        });
-      } else {
-        alert('Please select a valid PDF file.');
+    const handleFileSelect = async () => {
+      if (selectedFile.value) {
+        const fileId = Date.now().toString();
+        // Store the file in localStorage (you might want to use a more robust solution for larger files)
+        localStorage.setItem(`pdf_${fileId}`, await fileToBase64(selectedFile.value));
+        router.push({ name: 'DrawingWorkspace', params: { fileId } });
       }
     };
 
+    const fileToBase64 = (file) => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = (error) => reject(error);
+      });
+    };
+
     return {
-      fileInput,
-      openFileInput,
+      selectedFile,
       handleFileSelect
     };
   }
-};
+}
 </script>
 
 <style scoped>

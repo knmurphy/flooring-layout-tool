@@ -1,23 +1,12 @@
 <template>
-  <v-app :theme="theme">
-    <!-- Your app content -->
+  <v-app>
     <router-view></router-view>
   </v-app>
 </template>
 
 <script>
-import { ref, watch } from 'vue'
-
 export default {
-  setup() {
-    const theme = ref('light')
-
-    watch(() => localStorage.getItem('darkMode'), (newValue) => {
-      theme.value = newValue === 'true' ? 'dark' : 'light'
-    })
-
-    return { theme }
-  }
+  name: 'App'
 }
 </script>
 
