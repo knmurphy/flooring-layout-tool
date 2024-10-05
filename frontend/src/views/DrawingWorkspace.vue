@@ -19,5 +19,12 @@ export default {
 <style scoped>
 .workspace {
   padding: 20px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+h2 {
+  margin-bottom: 20px;
 }
 </style>

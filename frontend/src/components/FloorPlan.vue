@@ -1,5 +1,11 @@
 <template>
-  <div id="container">
+  <div class="floor-plan-container">
+    <div class="materials-menu" :style="{ top: menuTop + 'px', left: menuLeft + 'px' }" ref="materialsMenu">
+      <div class="menu-handle" @mousedown="startDragging">Materials</div>
+      <button v-for="pattern in availablePatterns" :key="pattern.name" @click="selectPattern(pattern)">
+        {{ pattern.name }}
+      </button>
+    </div>
     <v-stage
       ref="stage"
       :config="stageConfig"
@@ -24,26 +30,16 @@
         />
       </v-layer>
     </v-stage>
-    <div class="controls">
-      <div class="pattern-selector">
-        <button 
-          v-for="(pattern, index) in availablePatterns" 
-          :key="index" 
-          @click="selectPattern(pattern)"
-          :class="{ active: selectedPattern && selectedPattern.name === pattern.name }"
-        >
-          {{ pattern.name }}
-        </button>
-      </div>
-      <button @click="clearSelection">Clear Selection</button>
-      <button @click="saveLayout">Save Layout</button>
-      <button @click="loadLayout">Load Layout</button>
+    <div v-if="showSizeWarning" class="size-warning">
+      For the best experience, please use a larger screen size.
     </div>
+    <button @click="saveLayout">Save Layout</button>
+    <button @click="loadLayout">Load Layout</button>
   </div>
 </template>
 
 <script>
-import { defineComponent, ref, watchEffect } from 'vue'
+import { defineComponent, ref, watchEffect, onMounted, onUnmounted } from 'vue'
 import { Stage, Layer, Rect, Line } from 'vue-konva'
 
 export default defineComponent({
@@ -56,20 +52,24 @@ export default defineComponent({
   },
   setup() {
     const stageConfig = ref({
-      width: window.innerWidth - 100,
-      height: window.innerHeight - 100,
+      width: window.innerWidth,
+      height: window.innerHeight - 100, // Subtract space for the header
     });
-
-    const walls = ref([]);
-    const patterns = ref([]);
+    const showSizeWarning = ref(false);
+    const menuTop = ref(60); // Initial top position below the header
+    const menuLeft = ref(10);
     const isDrawing = ref(false);
     const currentLine = ref(null);
     const selectedPattern = ref(null);
+    const isDragging = ref(false);
 
     const stage = ref(null);
     const floorLayer = ref(null);
     const patternLayer = ref(null);
+    const materialsMenu = ref(null);
 
+    const walls = ref([]);
+    const patterns = ref([]);
     const availablePatterns = ref([
       { name: 'Hardwood', fill: '#8B4513', width: 50, height: 50 },
       { name: 'Tile', fill: '#D3D3D3', width: 40, height: 40 },
@@ -78,10 +78,48 @@ export default defineComponent({
       { name: 'Vinyl', fill: '#708090', width: 55, height: 55 },
     ]);
 
+    const updateStageSize = () => {
+      stageConfig.value.width = window.innerWidth;
+      stageConfig.value.height = window.innerHeight - 100;
+      showSizeWarning.value = window.innerWidth < 768; // Show warning for screens smaller than 768px
+    };
+
+    const startDragging = () => {
+      isDragging.value = true;
+      document.addEventListener('mousemove', onDrag);
+      document.addEventListener('mouseup', stopDragging);
+    };
+
+    const onDrag = (event) => {
+      if (isDragging.value) {
+        menuTop.value = event.clientY;
+        menuLeft.value = event.clientX;
+      }
+    };
+
+    const stopDragging = () => {
+      isDragging.value = false;
+      document.removeEventListener('mousemove', onDrag);
+      document.removeEventListener('mouseup', stopDragging);
+    };
+
+    onMounted(() => {
+      window.addEventListener('resize', updateStageSize);
+      updateStageSize();
+    });
+
+    onUnmounted(() => {
+      window.removeEventListener('resize', updateStageSize);
+    });
+
     watchEffect(() => {
-      if (stage.value && floorLayer.value && patternLayer.value) {
+      if (stage.value) {
         stage.value = stage.value.getNode();
+      }
+      if (floorLayer.value) {
         floorLayer.value = floorLayer.value.getNode();
+      }
+      if (patternLayer.value) {
         patternLayer.value = patternLayer.value.getNode();
       }
     });
@@ -141,6 +179,8 @@ export default defineComponent({
     };
 
     const handleWheel = (e) => {
+      if (!stage.value) return; // Add this line to check if stage.value exists
+
       e.evt.preventDefault();
       const scaleBy = 1.05;
       const oldScale = stage.value.scaleX();
@@ -211,6 +251,11 @@ export default defineComponent({
 
     return {
       stageConfig,
+      showSizeWarning,
+      menuTop,
+      menuLeft,
+      materialsMenu,
+      startDragging,
       walls,
       patterns,
       availablePatterns,
@@ -229,6 +274,44 @@ export default defineComponent({
 </script>
 
 <style scoped>
+.floor-plan-container {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 60px); /* Subtract header height */
+  overflow: hidden;
+}
+
+.materials-menu {
+  position: absolute;
+  background-color: white;
+  border: 1px solid #ccc;
+  padding: 10px;
+  border-radius: 5px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+}
+
+.menu-handle {
+  cursor: move;
+  padding: 5px;
+  background-color: #f0f0f0;
+  margin-bottom: 5px;
+  text-align: center;
+  font-weight: bold;
+}
+
+.size-warning {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(255, 255, 255, 0.9);
+  padding: 20px;
+  border-radius: 5px;
+  text-align: center;
+  z-index: 1001;
+}
+
 #container {
   border: 1px solid #ccc;
   width: 100%;
