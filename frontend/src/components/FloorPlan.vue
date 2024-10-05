@@ -1,60 +1,59 @@
 <template>
-  <div class="floor-plan-container" :class="{ 'dark-mode': isDarkMode }">
-    <div class="materials-menu" :style="{ top: menuTop + 'px', left: menuLeft + 'px' }" ref="materialsMenu">
-      <div class="menu-handle" @mousedown="startDragging">Materials</div>
-      <button 
-        v-for="pattern in availablePatterns" 
-        :key="pattern.name" 
-        @click="selectPattern(pattern)"
-        :class="{ 'selected': selectedPattern === pattern }"
-      >
-        {{ pattern.name }}
-      </button>
-    </div>
-    <v-stage
-      ref="stage"
-      :config="stageConfig"
-      @mousedown="handleMouseDown"
-      @mousemove="handleMouseMove"
-      @mouseup="handleMouseUp"
-      @wheel="handleWheel"
+  <v-container fluid class="floor-plan-container pa-0">
+    <v-row no-gutters>
+      <v-col cols="12">
+        <v-app-bar dense>
+          <v-app-bar-title>Floor Plan</v-app-bar-title>
+          <v-spacer></v-spacer>
+          <v-switch v-model="isDarkMode" label="Dark Mode" @change="toggleUIDarkMode"></v-switch>
+          <v-switch v-model="isCanvasDarkMode" label="Canvas Dark Mode" @change="toggleCanvasDarkMode"></v-switch>
+          <v-btn @click="openFileInput">Load PDF</v-btn>
+          <v-btn @click="exportAsPNG">Export as PNG</v-btn>
+        </v-app-bar>
+      </v-col>
+    </v-row>
+    <v-row no-gutters>
+      <v-col cols="12">
+        <div class="canvas-container">
+          <v-stage
+            ref="stage"
+            :config="stageConfig"
+            @mousedown="handleMouseDown"
+            @mousemove="handleMouseMove"
+            @mouseup="handleMouseUp"
+            @wheel="handleWheel"
+          >
+            <v-layer ref="mainLayer">
+              <v-group ref="backgroundGroup"></v-group>
+              <v-group ref="shapeGroup"></v-group>
+              <v-group ref="annotationGroup"></v-group>
+            </v-layer>
+          </v-stage>
+        </div>
+      </v-col>
+    </v-row>
+    <v-row no-gutters>
+      <v-col cols="12">
+        <v-bottom-navigation>
+          <v-btn v-for="pattern in availablePatterns" :key="pattern.name" @click="selectPattern(pattern)">
+            {{ pattern.name }}
+          </v-btn>
+        </v-bottom-navigation>
+      </v-col>
+    </v-row>
+    <input 
+      type="file" 
+      ref="fileInput" 
+      @change="handleFileSelect" 
+      accept="application/pdf" 
+      style="display: none;"
     >
-      <v-layer ref="backgroundLayer"></v-layer>
-      <v-layer ref="gridLayer">
-        <v-line
-          v-for="line in gridLines"
-          :key="line.id"
-          :config="line"
-        />
-      </v-layer>
-      <v-layer ref="floorLayer">
-        <v-line
-          v-for="(wall, index) in walls"
-          :key="'wall-' + index"
-          :config="wall"
-        />
-      </v-layer>
-      <v-layer ref="patternLayer">
-        <v-rect
-          v-for="(pattern, index) in patterns"
-          :key="'pattern-' + index"
-          :config="pattern"
-        />
-      </v-layer>
-    </v-stage>
-    <div v-if="showSizeWarning" class="size-warning">
-      For the best experience, please use a larger screen size.
-    </div>
-    <div class="controls">
-      <button @click="exportAsPNG">Export as PNG</button>
-      <button @click="toggleDarkMode">Toggle Dark Mode</button>
-    </div>
-  </div>
+  </v-container>
 </template>
 
 <script>
 import { defineComponent, ref, watchEffect, onMounted, onUnmounted, computed, defineExpose } from 'vue'
-import { Stage, Layer, Line, Rect } from 'vue-konva'
+import { Stage, Layer, Group } from 'vue-konva'
 import Konva from 'konva'
 import { convertPDFToImage } from '../utils/pdfUtils'
 
@@ -63,18 +62,18 @@ export default defineComponent({
   components: {
     VStage: Stage,
     VLayer: Layer,
-    VLine: Line,
-    VRect: Rect,
+    VGroup: Group,
   },
   setup() {
-    const isDarkMode = ref(true); // Start in dark mode by default
+    const isDarkMode = ref(false);
+    const isCanvasDarkMode = ref(false);
     const showSizeWarning = ref(false);
     const stageConfig = ref({
       width: window.innerWidth,
       height: window.innerHeight,
       backgroundColor: isDarkMode.value ? '#2c2c2c' : '#ffffff'
     });
-    const menuTop = ref(60); // Initial top position below the header
+    const menuTop = ref(60);
     const menuLeft = ref(10);
     const isDrawing = ref(false);
     const currentLine = ref(null);
@@ -82,10 +81,11 @@ export default defineComponent({
     const isDragging = ref(false);
     const walls = ref([]);
     const stage = ref(null);
-    const floorLayer = ref(null);
-    const patternLayer = ref(null);
+    const mainLayer = ref(null);
+    const backgroundGroup = ref(null);
+    const shapeGroup = ref(null);
+    const annotationGroup = ref(null);
     const materialsMenu = ref(null);
-    const backgroundLayer = ref(null);
 
     const patterns = ref([]);
     const availablePatterns = ref([
@@ -96,7 +96,7 @@ export default defineComponent({
       { name: 'Vinyl', fill: '#708090', width: 55, height: 55 },
     ]);
 
-    const gridSize = 20; // Size of each grid cell
+    const gridSize = 20;
     const gridLayer = ref(null);
 
     const gridLines = computed(() => {
@@ -128,8 +128,8 @@ export default defineComponent({
       if (gridLayer.value && gridLayer.value.getNode) {
         gridLayer.value.getNode().batchDraw();
       }
-      if (backgroundLayer.value && backgroundLayer.value.getNode) {
-        backgroundLayer.value.getNode().batchDraw();
+      if (mainLayer.value && mainLayer.value.getNode) {
+        mainLayer.value.getNode().batchDraw();
       }
     };
 
@@ -155,11 +155,14 @@ export default defineComponent({
     onMounted(() => {
       window.addEventListener('resize', updateStageSize);
       updateStageSize();
-      console.log('Stage ref:', stage.value);
       if (stage.value && stage.value.getNode) {
         const konvaStage = stage.value.getNode();
-        backgroundLayer.value = new Konva.Layer();
-        konvaStage.add(backgroundLayer.value);
+        mainLayer.value = new Konva.Layer();
+        backgroundGroup.value = new Konva.Group();
+        shapeGroup.value = new Konva.Group();
+        annotationGroup.value = new Konva.Group();
+        mainLayer.value.add(backgroundGroup.value, shapeGroup.value, annotationGroup.value);
+        konvaStage.add(mainLayer.value);
       }
     });
 
@@ -168,14 +171,11 @@ export default defineComponent({
     });
 
     watchEffect(() => {
-      if (stage.value) {
+      if (stage.value && stage.value.getNode) {
         stage.value = stage.value.getNode();
       }
-      if (floorLayer.value) {
-        floorLayer.value = floorLayer.value.getNode();
-      }
-      if (patternLayer.value) {
-        patternLayer.value = patternLayer.value.getNode();
+      if (mainLayer.value && mainLayer.value.getNode) {
+        mainLayer.value = mainLayer.value.getNode();
       }
     });
 
@@ -195,7 +195,7 @@ export default defineComponent({
       if (currentLine.value) {
         const newPoints = currentLine.value.points().slice(0, 2).concat([pos.x, pos.y]);
         currentLine.value.points(newPoints);
-        floorLayer.value.batchDraw();
+        mainLayer.value.batchDraw();
       }
     };
 
@@ -208,23 +208,31 @@ export default defineComponent({
     };
 
     const startDrawingWall = (pos) => {
-      currentLine.value = new Konva.Line({
-        points: [pos.x, pos.y, pos.x, pos.y],
-        stroke: '#ffffff', // White color for visibility on dark background
-        strokeWidth: 2,
-      });
-      floorLayer.value.add(currentLine.value);
+      if (shapeGroup.value) {
+        currentLine.value = new Konva.Line({
+          points: [pos.x, pos.y, pos.x, pos.y],
+          stroke: '#ffffff',
+          strokeWidth: 2,
+        });
+        shapeGroup.value.add(currentLine.value);
+        mainLayer.value.batchDraw();
+      }
     };
 
     const placePattern = (pos) => {
-      if (selectedPattern.value) {
-        const newPattern = {
-          ...selectedPattern.value,
+      if (selectedPattern.value && shapeGroup.value) {
+        const newPattern = new Konva.Rect({
           x: Math.round(pos.x / gridSize) * gridSize,
           y: Math.round(pos.y / gridSize) * gridSize,
+          width: selectedPattern.value.width,
+          height: selectedPattern.value.height,
+          fill: selectedPattern.value.fill,
           draggable: true,
-        };
+        });
+        const konvaGroup = shapeGroup.value.getNode();
+        konvaGroup.add(newPattern);
         patterns.value.push(newPattern);
+        mainLayer.value.getNode().batchDraw();
       }
     };
 
@@ -234,7 +242,7 @@ export default defineComponent({
       const newX = Math.round(shape.x() / stepSize) * stepSize;
       const newY = Math.round(shape.y() / stepSize) * stepSize;
       shape.position({ x: newX, y: newY });
-      patternLayer.value?.batchDraw();
+      mainLayer.value?.batchDraw();
     };
 
     const handleWheel = (e) => {
@@ -297,8 +305,7 @@ export default defineComponent({
           const layoutData = await response.json();
           walls.value = layoutData.walls;
           patterns.value = layoutData.patterns;
-          floorLayer.value.batchDraw();
-          patternLayer.value.batchDraw();
+          mainLayer.value.batchDraw();
           console.log('Layout loaded successfully');
         } else {
           console.error('Failed to load layout');
@@ -371,10 +378,12 @@ export default defineComponent({
     // Function to toggle dark mode (you can call this when user switches themes)
     const toggleDarkMode = () => {
       isDarkMode.value = !isDarkMode.value;
-      invertColors();
-      // Update the stage background color
       if (stage.value) {
         stage.value.container().style.backgroundColor = isDarkMode.value ? '#2c2c2c' : '#ffffff';
+      }
+      // Force a re-render of the stage
+      if (mainLayer.value) {
+        mainLayer.value.batchDraw();
       }
     };
 
@@ -384,14 +393,14 @@ export default defineComponent({
         const backgroundImage = new Image();
         backgroundImage.src = dataUrl;
         backgroundImage.onload = () => {
-          if (stage.value && backgroundLayer.value) {
+          if (stage.value && backgroundGroup.value) {
             const stageWidth = stage.value.width();
             const stageHeight = stage.value.height();
             const scale = Math.min(stageWidth / width, stageHeight / height);
             const x = (stageWidth - width * scale) / 2;
             const y = (stageHeight - height * scale) / 2;
 
-            backgroundLayer.value.destroyChildren();
+            backgroundGroup.value.destroyChildren();
             const canvas = document.createElement('canvas');
             canvas.width = width;
             canvas.height = height;
@@ -413,15 +422,15 @@ export default defineComponent({
               width: width * scale,
               height: height * scale,
             });
-            backgroundLayer.value.add(imageNode);
-            backgroundLayer.value.batchDraw();
+            backgroundGroup.value.add(imageNode);
+            backgroundGroup.value.batchDraw();
 
             // Enable dragging for the stage
             stage.value.draggable(true);
 
             console.log('PDF background set successfully');
           } else {
-            console.error('Stage or backgroundLayer is not available');
+            console.error('Stage or backgroundGroup is not available');
           }
         };
       } catch (error) {
@@ -432,6 +441,42 @@ export default defineComponent({
     // Make sure to expose the toggleColorInversion method
     defineExpose({ exportAsPNG, toggleDarkMode });
 
+    watchEffect(() => {
+      if (stage.value) {
+        stage.value.container().style.backgroundColor = isDarkMode.value ? '#2c2c2c' : '#ffffff';
+      }
+    });
+
+    const fileInput = ref(null);
+
+    const openFileInput = () => {
+      fileInput.value.click();
+    };
+
+    const handleFileSelect = (event) => {
+      const file = event.target.files[0];
+      if (file && file.type === 'application/pdf') {
+        setPDFBackground(file);
+      } else {
+        alert('Please select a valid PDF file.');
+      }
+    };
+
+    const toggleUIDarkMode = () => {
+      // This will be handled by Vuetify's built-in dark mode
+    };
+
+    const toggleCanvasDarkMode = () => {
+      if (stage.value) {
+        stage.value.container().style.backgroundColor = isCanvasDarkMode.value ? '#2c2c2c' : '#ffffff';
+      }
+      // Force a re-render of the stage
+      if (mainLayer.value) {
+        mainLayer.value.batchDraw();
+      }
+    };
+
+    // Update the return statement to include new methods and refs
     return {
       stageConfig,
       showSizeWarning,
@@ -456,28 +501,51 @@ export default defineComponent({
       stage,
       toggleDarkMode,
       setPDFBackground,
-      backgroundLayer,
+      mainLayer,
+      backgroundGroup,
+      shapeGroup,
+      annotationGroup,
+      fileInput,
+      openFileInput,
+      handleFileSelect,
+      isDarkMode,
+      isCanvasDarkMode,
+      toggleUIDarkMode,
+      toggleCanvasDarkMode,
     };
   },
 });
 </script>
 
 <style scoped>
+:root {
+  --bg-color: #ffffff;
+  --text-color: #000000;
+  --menu-bg-color: #f0f0f0;
+  --button-bg-color: #4a4a4a;
+  --button-text-color: #ffffff;
+}
+
+.dark-mode {
+  --bg-color: #1e1e1e;
+  --text-color: #ffffff;
+  --menu-bg-color: #2c2c2c;
+  --button-bg-color: #4a4a4a;
+  --button-text-color: #ffffff;
+}
+
 .floor-plan-container {
   position: relative;
   width: 100%;
   height: calc(100vh - 60px);
   overflow: hidden;
-}
-
-.floor-plan-container.dark-mode {
-  background-color: #1e1e1e;
-  color: #ffffff;
+  background-color: var(--bg-color);
+  color: var(--text-color);
 }
 
 .materials-menu {
   position: absolute;
-  background-color: #2c2c2c;
+  background-color: var(--menu-bg-color);
   border: 1px solid #4a4a4a;
   padding: 10px;
   border-radius: 5px;
@@ -507,8 +575,8 @@ export default defineComponent({
 }
 
 button {
-  background-color: #4a4a4a;
-  color: #ffffff;
+  background-color: var(--button-bg-color);
+  color: var(--button-text-color);
   border: none;
   padding: 5px 10px;
   margin: 5px;
@@ -546,10 +614,32 @@ button:hover {
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 1000; /* Ensure buttons are above the canvas */
+  display: flex;
+  gap: 10px;
+  z-index: 1000;
 }
 
-button {
-  /* ... existing button styles ... */
+.controls button {
+  padding: 10px 20px;
+  font-size: 14px;
+  background-color: var(--button-bg-color);
+  color: var(--button-text-color);
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.controls button:hover {
+  background-color: #5a5a5a;
+}
+
+.floor-plan-container {
+  height: 100vh;
+}
+
+.canvas-container {
+  height: calc(100vh - 112px); /* Adjust based on your app bar and bottom navigation heights */
+  overflow: hidden;
 }
 </style>

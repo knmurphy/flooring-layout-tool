@@ -2,17 +2,6 @@
   <div class="workspace">
     <h2>Drawing Workspace</h2>
     <FloorPlan ref="floorPlan" />
-    <div class="toolbar">
-      <button @click="openFileInput" class="toolbar-btn">Load PDF</button>
-      <input 
-        type="file" 
-        ref="fileInput" 
-        @change="handleFileSelect" 
-        accept="application/pdf" 
-        style="display: none;"
-      >
-      <!-- Add other toolbar buttons here -->
-    </div>
   </div>
 </template>
 

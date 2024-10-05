@@ -1,7 +1,14 @@
 const webpack = require('webpack');
 const path = require('path');
+const { defineConfig } = require('@vue/cli-service')
 
-module.exports = {
+module.exports = defineConfig({
+  transpileDependencies: true,
+  pluginOptions: {
+    vuetify: {
+      // https://github.com/vuetifyjs/vuetify-loader/tree/next/packages/vuetify-loader
+    }
+  },
   configureWebpack: {
     resolve: {
       alias: {
@@ -30,4 +37,4 @@ module.exports = {
         name: '[name].[ext]'
       });
   }
-};
+});
