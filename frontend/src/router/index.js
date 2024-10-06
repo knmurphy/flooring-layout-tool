@@ -9,14 +9,19 @@ const routes = [
     component: Home
   },
   {
-    path: '/drawing-workspace/:fileId',
+    path: '/drawing-workspace',
     name: 'DrawingWorkspace',
+    component: DrawingWorkspace
+  },
+  {
+    path: '/drawing-workspace/:fileId',
+    name: 'DrawingWorkspaceWithFile',
     component: DrawingWorkspace
   }
 ];
 
 const router = createRouter({
-  history: createWebHistory(process.env.BASE_URL),
+  history: createWebHistory(),
   routes
 });
 

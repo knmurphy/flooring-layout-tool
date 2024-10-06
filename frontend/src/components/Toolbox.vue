@@ -7,6 +7,13 @@
     </template>
     <el-menu class="tool-menu">
       <el-menu-item 
+        @click="setTool('cursor')"
+        :class="{ 'is-active': selectedTool === 'cursor' }"
+      >
+        <el-icon><Pointer /></el-icon>
+        <span>Select</span>
+      </el-menu-item>
+      <el-menu-item 
         v-for="tool in tools" 
         :key="tool.name" 
         @click="setTool(tool.name)"
@@ -22,7 +29,7 @@
 
 <script>
 import { defineComponent, ref } from 'vue'
-import { Crop, Star } from '@element-plus/icons-vue'
+import { Crop, Star, Pointer } from '@element-plus/icons-vue'
 import MaterialPalette from './MaterialPalette.vue'
 
 export default defineComponent({
@@ -30,18 +37,24 @@ export default defineComponent({
   components: {
     Crop,
     Star,
+    Pointer,
     MaterialPalette
   },
+  props: {
+    selectedTool: {
+      type: String,
+      default: 'cursor'
+    }
+  },
+  emits: ['toolSelected', 'patternSelected'],
   setup(props, { emit }) {
-    const tools = [
+    const tools = ref([
       { name: 'rectangle', label: 'Rectangle', icon: 'Crop' },
       { name: 'polygon', label: 'Polygon', icon: 'Star' },
-    ]
-    const selectedTool = ref('')
+    ])
 
-    const setTool = (tool) => {
-      selectedTool.value = tool
-      emit('toolSelected', tool)
+    const setTool = (toolName) => {
+      emit('toolSelected', toolName)
     }
 
     const onPatternSelected = (pattern) => {
@@ -50,7 +63,6 @@ export default defineComponent({
 
     return {
       tools,
-      selectedTool,
       setTool,
       onPatternSelected
     }

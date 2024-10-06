@@ -1,7 +1,7 @@
 import { ref, watch } from 'vue'
 
 export function useTheme() {
-  const isDarkMode = ref(true)
+  const isDarkMode = ref(false) // Set to false for light theme by default
 
   const toggleTheme = () => {
     isDarkMode.value = !isDarkMode.value
@@ -9,13 +9,21 @@ export function useTheme() {
   }
 
   const applyTheme = () => {
-    document.body.classList.toggle('dark-mode', isDarkMode.value)
+    if (isDarkMode.value) {
+      document.documentElement.classList.add('dark')
+      document.body.setAttribute('data-theme', 'dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+      document.body.removeAttribute('data-theme')
+    }
   }
 
+  // Apply theme on initial load
   watch(isDarkMode, applyTheme, { immediate: true })
 
   return {
     isDarkMode,
-    toggleTheme
+    toggleTheme,
+    applyTheme
   }
 }

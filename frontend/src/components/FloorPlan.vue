@@ -3,7 +3,7 @@
 </template>
 
 <script>
-import { defineComponent, ref, onMounted, watch } from 'vue'
+import { defineComponent, ref, onMounted, watch, onUnmounted } from 'vue'
 import Konva from 'konva'
 import { openDB } from 'idb'
 import { convertPDFToImage } from '../utils/pdfUtils'
@@ -25,7 +25,7 @@ export default defineComponent({
       default: () => ({ name: 'Default', fill: '#cccccc' })
     }
   },
-  setup(props) {
+  setup(props, { emit }) {
     const konvaContainer = ref(null)
     const stage = ref(null)
     const layer = ref(null)
@@ -34,6 +34,8 @@ export default defineComponent({
     let startPoint = null
     let currentShape = null
     let isPanning = false
+    const shapes = ref([])
+    const selectedShape = ref(null)
 
     const initKonva = () => {
       stage.value = new Konva.Stage({
@@ -66,13 +68,42 @@ export default defineComponent({
         stage.value.batchDraw()
       })
 
-      stage.value.on('mousedown touchstart', handleMouseDown)
-      stage.value.on('mousemove touchmove', handleMouseMove)
-      stage.value.on('mouseup touchend', handleMouseUp)
+      stage.value.on('mousedown touchstart', handleStageMouseDown)
+      stage.value.on('mousemove touchmove', handleStageMouseMove)
+      stage.value.on('mouseup touchend', handleStageMouseUp)
       stage.value.on('dblclick', handleDblClick)  // Add double-click event listener
+      stage.value.on('click tap', handleStageClick)
     }
 
-    const handleMouseDown = (e) => {
+    const handleStageMouseDown = (e) => {
+      if (props.selectedTool === 'cursor') {
+        // If in cursor mode, handle selection
+        const clickedOnEmpty = e.target === stage.value
+        if (clickedOnEmpty) {
+          deselectShape()
+        } else {
+          const shape = e.target
+          selectShape(shape)
+        }
+      } else {
+        // If not in cursor mode, start drawing
+        startDrawing(e)
+      }
+    }
+
+    const handleStageMouseMove = (e) => {
+      if (props.selectedTool !== 'cursor' && isDrawing) {
+        draw(e)
+      }
+    }
+
+    const handleStageMouseUp = (e) => {
+      if (props.selectedTool !== 'cursor') {
+        endDrawing(e)
+      }
+    }
+
+    const startDrawing = (e) => {
       if (isPanning) {
         stage.value.draggable(true)
         return
@@ -121,7 +152,7 @@ export default defineComponent({
       layer.value.batchDraw()
     }
 
-    const handleMouseMove = (e) => {
+    const draw = (e) => {
       if (!isDrawing || isPanning) return
 
       // Prevent default behavior for touch events
@@ -145,7 +176,7 @@ export default defineComponent({
       layer.value.batchDraw()
     }
 
-    const handleMouseUp = (e) => {
+    const endDrawing = (e) => {
       if (isPanning) {
         stage.value.draggable(false)
         return
@@ -191,18 +222,102 @@ export default defineComponent({
       }
     }
 
-    const handleKeyDown = (e) => {
-      if (e.code === 'Space') {
-        isPanning = true
-        stage.value.draggable(true)
+    const handleStageClick = (e) => {
+      if (e.target === stage.value) {
+        // Clicked on empty area, deselect
+        deselectShape()
       }
     }
 
-    const handleKeyUp = (e) => {
-      if (e.code === 'Space') {
-        isPanning = false
-        stage.value.draggable(false)
+    const createShape = (type, config) => {
+      let shape
+      if (type === 'rectangle') {
+        shape = new Konva.Rect({
+          ...config,
+          draggable: true // Make the shape draggable
+        })
+      } else if (type === 'polygon') {
+        shape = new Konva.Line({
+          ...config,
+          closed: true,
+          draggable: true // Make the shape draggable
+        })
       }
+
+      shape.on('click tap', () => selectShape(shape))
+      
+      // Add dragmove and dragend event listeners
+      shape.on('dragmove', () => {
+        emit('shapeUpdated', shape)
+      })
+      
+      shape.on('dragend', () => {
+        emit('shapeUpdated', shape)
+        detectMaterialTransitions() // Recalculate material transitions after dragging
+      })
+
+      shapes.value.push(shape)
+      layer.value.add(shape)
+      layer.value.draw()
+    }
+
+    const selectShape = (shape) => {
+      deselectShape()
+      selectedShape.value = shape
+      shape.stroke('blue')
+      shape.strokeWidth(2)
+      layer.value.draw()
+      emit('shapeSelected', shape)
+    }
+
+    const deselectShape = () => {
+      if (selectedShape.value) {
+        selectedShape.value.stroke(null)
+        selectedShape.value.strokeWidth(0)
+        selectedShape.value = null
+        layer.value.draw()
+        emit('shapeSelected', null)
+      }
+    }
+
+    const updateSelectedShape = (updates) => {
+      if (selectedShape.value) {
+        selectedShape.value.setAttrs(updates)
+        layer.value.draw()
+      }
+    }
+
+    const detectMaterialTransitions = () => {
+      // Implement collision detection between shapes
+      // This is a simplified version, you might need a more robust algorithm
+      for (let i = 0; i < shapes.value.length; i++) {
+        for (let j = i + 1; j < shapes.value.length; j++) {
+          if (shapes.value[i].getAttr('material') !== shapes.value[j].getAttr('material')) {
+            const intersection = Konva.Util.haveIntersection(
+              shapes.value[i].getClientRect(),
+              shapes.value[j].getClientRect()
+            )
+            if (intersection) {
+              addTransitionIcon(intersection)
+            }
+          }
+        }
+      }
+    }
+
+    const addTransitionIcon = (position) => {
+      const icon = new Konva.Star({
+        x: position.x,
+        y: position.y,
+        numPoints: 5,
+        innerRadius: 10,
+        outerRadius: 20,
+        fill: 'yellow',
+        stroke: 'black',
+        strokeWidth: 2
+      })
+      layer.value.add(icon)
+      layer.value.draw()
     }
 
     const loadPDFBackground = async () => {
@@ -235,12 +350,38 @@ export default defineComponent({
       }
     }
 
+    const handleKeyDown = (e) => {
+      if (e.code === 'Space') {
+        isPanning = true
+        if (stage.value) {
+          stage.value.container().style.cursor = 'grab'
+          stage.value.draggable(true)
+        }
+      }
+    }
+
+    const handleKeyUp = (e) => {
+      if (e.code === 'Space') {
+        isPanning = false
+        if (stage.value) {
+          stage.value.container().style.cursor = 'default'
+          stage.value.draggable(false)
+        }
+      }
+    }
+
     onMounted(() => {
       initKonva()
       if (props.fileId) {
         loadPDFBackground()
       }
-      konvaContainer.value.focus()  // Set focus to enable key events
+      window.addEventListener('keydown', handleKeyDown)
+      window.addEventListener('keyup', handleKeyUp)
+    })
+
+    onUnmounted(() => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
     })
 
     watch(() => props.fileId, (newFileId) => {
@@ -251,6 +392,12 @@ export default defineComponent({
 
     return {
       konvaContainer,
+      handleStageMouseDown,
+      handleStageMouseMove,
+      handleStageMouseUp,
+      createShape,
+      updateSelectedShape,
+      detectMaterialTransitions,
       handleKeyDown,
       handleKeyUp
     }
@@ -262,6 +409,8 @@ export default defineComponent({
 .konva-container {
   width: 100%;
   height: 100%;
-  outline: none;  /* Remove focus outline */
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 </style>

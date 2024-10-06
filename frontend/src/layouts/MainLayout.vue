@@ -1,26 +1,26 @@
 <template>
   <el-container class="layout-container">
     <el-header>
-      <el-menu mode="horizontal" router>
-        <el-menu-item index="/">Home</el-menu-item>
-        <el-menu-item index="/drawing-workspace">Drawing Workspace</el-menu-item>
-      </el-menu>
-      <el-switch v-model="isDarkMode" active-text="Dark" inactive-text="Light" @change="toggleTheme" />
+      <!-- Header content -->
     </el-header>
-    <el-main>
+    <el-main style="padding: 0; height: calc(100vh - 60px);">
       <slot></slot>
     </el-main>
   </el-container>
 </template>
 
 <script>
-import { defineComponent } from 'vue'
+import { defineComponent, onMounted } from 'vue'
 import { useTheme } from '../composables/theme'
 
 export default defineComponent({
   name: 'MainLayout',
   setup() {
-    const { isDarkMode, toggleTheme } = useTheme()
+    const { isDarkMode, toggleTheme, applyTheme } = useTheme()
+
+    onMounted(() => {
+      applyTheme() // Apply theme on component mount
+    })
 
     return {
       isDarkMode,

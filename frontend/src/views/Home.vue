@@ -44,7 +44,7 @@ export default {
           });
           await db.put('pdfs', file.raw, fileId);
           localStorage.setItem(`pdf_${fileId}`, file.raw.name); // Store only the filename
-          router.push({ name: 'DrawingWorkspace', params: { fileId } });
+          router.push({ name: 'DrawingWorkspaceWithFile', params: { fileId } });
         } catch (error) {
           console.error('Error storing PDF:', error);
           ElMessage.error('Failed to store the PDF. Please try a smaller file.');
