@@ -1,5 +1,5 @@
 <template>
-  <div ref="konvaContainer" class="konva-container" tabindex="0"></div>
+  <div ref="konvaContainer" class="konva-container"></div>
 </template>
 
 <script>
@@ -24,24 +24,34 @@ export default defineComponent({
     const selectedShape = ref(null)
     let isDrawing = false
     let newShape = null
+    const lastClickTime = ref(0)
+    const doubleClickDelay = 300 // milliseconds
+    const startPoint = ref(null)
 
-    const getRelativePointerPosition = (node) => {
-      const transform = node.getAbsoluteTransform().copy()
-      transform.invert()
-      const pos = node.getStage().getPointerPosition()
-      return transform.point(pos)
-    }
+    const getRelativePointerPosition = () => {
+      const pos = stage.value.getPointerPosition();
+      return {
+        x: (pos.x - stage.value.x()) / stage.value.scaleX(),
+        y: (pos.y - stage.value.y()) / stage.value.scaleY()
+      };
+    };
 
     const initKonva = () => {
+      const container = konvaContainer.value;
       stage.value = new Konva.Stage({
-        container: konvaContainer.value,
-        width: konvaContainer.value.offsetWidth,
-        height: konvaContainer.value.offsetHeight,
-      })
+        container: container,
+        width: container.offsetWidth,
+        height: container.offsetHeight,
+        scaleX: 1,
+        scaleY: 1
+      });
       layer.value = new Konva.Layer()
       backgroundGroup.value = new Konva.Group()
       layer.value.add(backgroundGroup.value)
       stage.value.add(layer.value)
+
+      // Log stage dimensions
+      console.log('Stage dimensions:', stage.value.width(), stage.value.height())
     }
 
     const loadPDFBackground = async () => {
@@ -69,19 +79,21 @@ export default defineComponent({
     }
 
     const createShape = (type, config) => {
-      let shape
+      let shape;
       if (type === 'rectangle') {
         shape = new Konva.Rect({
           ...config,
           draggable: true
-        })
+        });
       } else if (type === 'polygon') {
         shape = new Konva.Line({
-          ...config,
-          points: [],
-          closed: false,
+          points: [config.x, config.y, config.x, config.y],
+          closed: true,
+          fill: props.selectedPattern.fill,
+          stroke: 'black',
+          strokeWidth: 2,
           draggable: false
-        })
+        });
       }
 
       shape.on('click', () => selectShape(shape))
@@ -105,93 +117,122 @@ export default defineComponent({
 
     const selectShape = (shape) => {
       if (selectedShape.value) {
-        selectedShape.value.stroke(null)
-        selectedShape.value.strokeWidth(0)
+        selectedShape.value.stroke(null);
+        selectedShape.value.strokeWidth(0);
       }
-      selectedShape.value = shape
-      shape.stroke('blue')
-      shape.strokeWidth(2)
-      layer.value.batchDraw()
-      emit('shapeSelected', shape)
-    }
+      selectedShape.value = shape;
+      shape.stroke('blue');
+      shape.strokeWidth(2);
+      layer.value.batchDraw();
+      emit('shapeSelected', shape);
+    };
 
     const deselectShape = () => {
       if (selectedShape.value) {
-        selectedShape.value.stroke(null)
-        selectedShape.value.strokeWidth(0)
-        selectedShape.value = null
-        layer.value.batchDraw()
-        emit('shapeSelected', null)
+        selectedShape.value.stroke(null);
+        selectedShape.value.strokeWidth(0);
+        selectedShape.value = null;
+        layer.value.batchDraw();
+        emit('shapeSelected', null);
       }
-    }
+    };
 
-    const handleStageMouseDown = (e) => {
-      const pos = getRelativePointerPosition(stage.value)
-      if (props.selectedTool === 'cursor') {
-        if (e.target === stage.value) {
-          deselectShape()
-        }
-      } else if (props.selectedTool === 'rectangle') {
-        isDrawing = true
-        newShape = createShape('rectangle', {
-          x: pos.x,
-          y: pos.y,
-          width: 0,
-          height: 0,
-          fill: props.selectedPattern.fill,
-        })
-      } else if (props.selectedTool === 'polygon') {
-        if (!newShape) {
-          newShape = createShape('polygon', {
-            points: [pos.x, pos.y],
-            fill: props.selectedPattern.fill,
-            stroke: 'black',
-            strokeWidth: 2,
-          })
-          isDrawing = true
-        } else {
-          const points = newShape.points()
-          points.push(pos.x, pos.y)
-          newShape.points(points)
-          layer.value.batchDraw()
+    const finishPolygon = () => {
+      if (props.selectedTool === 'polygon' && newShape) {
+        console.log('Finishing polygon');
+        const points = newShape.points().slice(0, -2);
+        newShape.points(points);
+        newShape.closed(true);
+        newShape.draggable(true);
+        isDrawing = false;
+        selectShape(newShape);
+        newShape = null;
+        layer.value.batchDraw();
+      }
+    };
+
+    const handleStageClick = () => {
+      const currentTime = new Date().getTime();
+      const timeSinceLastClick = currentTime - lastClickTime.value;
+
+      if (timeSinceLastClick < doubleClickDelay) {
+        console.log('Double click detected');
+        finishPolygon();
+      } else {
+        const pos = getRelativePointerPosition();
+        console.log('Single click at:', pos);
+
+        if (props.selectedTool === 'polygon') {
+          if (!isDrawing) {
+            isDrawing = true;
+            newShape = createShape('polygon', {
+              x: pos.x,
+              y: pos.y,
+            });
+          } else {
+            const points = newShape.points();
+            points.splice(points.length - 2, 0, pos.x, pos.y);
+            newShape.points(points);
+            layer.value.batchDraw();
+          }
+        } else if (props.selectedTool === 'rectangle') {
+          if (!isDrawing) {
+            isDrawing = true;
+            startPoint.value = pos;
+          }
+        } else if (props.selectedTool === 'cursor') {
+          if (stage.value.getIntersection(pos)) {
+            // If clicked on a shape, select it
+            const clickedShape = stage.value.getIntersection(pos).getParent();
+            selectShape(clickedShape);
+          } else {
+            // If clicked on empty space, deselect
+            deselectShape();
+          }
         }
       }
-    }
+
+      lastClickTime.value = currentTime;
+    };
 
     const handleStageMouseMove = () => {
-      if (!isDrawing || !newShape) return
+      if (!isDrawing) return;
 
-      const pos = getRelativePointerPosition(stage.value)
-      if (props.selectedTool === 'rectangle') {
-        newShape.width(pos.x - newShape.x())
-        newShape.height(pos.y - newShape.y())
+      const pos = getRelativePointerPosition();
+      if (props.selectedTool === 'rectangle' && startPoint.value) {
+        if (!newShape) {
+          newShape = createShape('rectangle', {
+            x: startPoint.value.x,
+            y: startPoint.value.y,
+            width: 0,
+            height: 0,
+            fill: props.selectedPattern.fill,
+          });
+        }
+        newShape.width(pos.x - startPoint.value.x);
+        newShape.height(pos.y - startPoint.value.y);
+        layer.value.batchDraw();
       } else if (props.selectedTool === 'polygon') {
-        const points = newShape.points()
-        points[points.length - 2] = pos.x
-        points[points.length - 1] = pos.y
-        newShape.points(points)
+        const points = newShape.points();
+        points[points.length - 2] = pos.x;
+        points[points.length - 1] = pos.y;
+        newShape.points(points);
       }
-      layer.value.batchDraw()
-    }
+      layer.value.batchDraw();
+    };
 
     const handleStageMouseUp = () => {
       if (isDrawing && props.selectedTool === 'rectangle') {
-        isDrawing = false
-        newShape = null
+        isDrawing = false;
+        startPoint.value = null;
+        if (newShape) {
+          newShape.draggable(true);
+          selectShape(newShape);
+          newShape = null;
+        }
       }
-    }
+    };
 
-    const handleStageDoubleClick = () => {
-      if (props.selectedTool === 'polygon' && newShape) {
-        newShape.closed(true)
-        newShape.draggable(true)
-        isDrawing = false
-        newShape = null
-        layer.value.batchDraw()
-      }
-    }
-
-    // Zoom and pan functions
     const handleWheel = (e) => {
       e.evt.preventDefault()
       const scaleBy = 1.1
@@ -229,23 +270,33 @@ export default defineComponent({
       }
     }
 
+    const handleResize = () => {
+      if (stage.value) {
+        const container = konvaContainer.value
+        stage.value.width(container.offsetWidth)
+        stage.value.height(container.offsetHeight)
+        stage.value.draw()
+      }
+    }
+
     onMounted(() => {
       initKonva()
       if (props.fileId) {
         loadPDFBackground()
       }
-      stage.value.on('mousedown touchstart', handleStageMouseDown)
+      stage.value.on('mousedown touchstart', handleStageClick)
       stage.value.on('mousemove touchmove', handleStageMouseMove)
       stage.value.on('mouseup touchend', handleStageMouseUp)
-      stage.value.on('dblclick', handleStageDoubleClick)
       stage.value.on('wheel', handleWheel)
       window.addEventListener('keydown', handleKeyDown)
       window.addEventListener('keyup', handleKeyUp)
+      window.addEventListener('resize', handleResize)
     })
 
     onUnmounted(() => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('resize', handleResize)
     })
 
     watch(() => props.fileId, (newFileId) => {
@@ -255,7 +306,8 @@ export default defineComponent({
     })
 
     return {
-      konvaContainer
+      konvaContainer,
+      // ... other returned values
     }
   }
 })
@@ -264,7 +316,6 @@ export default defineComponent({
 <style scoped>
 .konva-container {
   width: 100%;
-  height: 100%;
-  outline: none;
+  height: 100vh; /* or a specific height */
 }
 </style>
