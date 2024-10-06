@@ -1,0 +1,10 @@
+[build]
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+  included_files = ["node_modules/pdf-lib/**", "node_modules/pdf2pic/**"]
+  external_node_modules = ["pdf-lib", "pdf2pic"]
+
+[functions.pdf-to-image]
+  timeout = 60

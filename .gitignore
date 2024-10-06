@@ -130,3 +130,5 @@ dist
 
 # VuePress build output
 .vuepress/
+# Local Netlify folder
+.netlify
