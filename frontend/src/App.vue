@@ -1,21 +1,32 @@
 <template>
-  <div id="app">
-    <router-view />
-  </div>
+  <el-config-provider :namespace="namespace">
+    <MainLayout>
+      <router-view></router-view>
+    </MainLayout>
+  </el-config-provider>
 </template>
 
 <script>
-export default {
+import { defineComponent, computed } from 'vue'
+import { useTheme } from './composables/theme'
+import MainLayout from './layouts/MainLayout.vue'
+
+export default defineComponent({
   name: 'App',
-};
+  components: {
+    MainLayout
+  },
+  setup() {
+    const { isDarkMode } = useTheme()
+    const namespace = computed(() => isDarkMode.value ? 'ep' : undefined)
+
+    return {
+      namespace
+    }
+  }
+})
 </script>
 
-<style scoped>
-#app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
-}
+<style>
+/* Your global styles here */
 </style>

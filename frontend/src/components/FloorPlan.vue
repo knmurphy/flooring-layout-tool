@@ -1,487 +1,321 @@
 <template>
-  <div class="floor-plan-container" :class="{ 'dark-mode': isDarkMode }">
-    <div class="materials-menu" :style="{ top: menuTop + 'px', left: menuLeft + 'px' }" ref="materialsMenu">
-      <div class="menu-handle" @mousedown="startDragging">Materials</div>
-      <button 
-        v-for="pattern in availablePatterns" 
-        :key="pattern.name" 
-        @click="selectPattern(pattern)"
-        :class="{ 'selected': selectedPattern === pattern }"
-      >
-        {{ pattern.name }}
-      </button>
-    </div>
-    <v-stage
-      ref="stage"
-      :config="stageConfig"
-      @mousedown="handleMouseDown"
-      @mousemove="handleMouseMove"
-      @mouseup="handleMouseUp"
-      @wheel="handleWheel"
-    >
-      <v-layer ref="gridLayer">
-        <v-line
-          v-for="line in gridLines"
-          :key="line.id"
-          :config="line"
-        />
-      </v-layer>
-      <v-layer ref="floorLayer">
-        <v-line
-          v-for="(wall, index) in walls"
-          :key="'wall-' + index"
-          :config="wall"
-        />
-      </v-layer>
-      <v-layer ref="patternLayer">
-        <v-rect
-          v-for="(pattern, index) in patterns"
-          :key="'pattern-' + index"
-          :config="pattern"
-        />
-      </v-layer>
-    </v-stage>
-    <div v-if="showSizeWarning" class="size-warning">
-      For the best experience, please use a larger screen size.
-    </div>
-    <div class="controls">
-      <button @click="exportAsPNG">Export as PNG</button>
-      <button @click="toggleDarkMode">Toggle Dark Mode</button>
-    </div>
-  </div>
+  <div ref="konvaContainer" class="konva-container"></div>
 </template>
 
 <script>
-import { defineComponent, ref, watchEffect, onMounted, onUnmounted, computed, defineExpose } from 'vue'
-import { Stage, Layer, Line, Rect } from 'vue-konva'
+import { defineComponent, ref, onMounted, watch, onUnmounted } from 'vue'
 import Konva from 'konva'
+import { openDB } from 'idb'
+import { convertPDFToImage } from '../utils/pdfUtils'
 
 export default defineComponent({
-  name: 'FloorPlan',
-  components: {
-    VStage: Stage,
-    VLayer: Layer,
-    VLine: Line,
-    VRect: Rect,
+  props: {
+    fileId: String,
+    selectedTool: String,
+    selectedPattern: Object
   },
-  setup() {
-    const isDarkMode = ref(true); // Start in dark mode by default
+  emits: ['shapeSelected', 'shapeUpdated'],
+  setup(props, { emit }) {
+    const konvaContainer = ref(null)
+    const stage = ref(null)
+    const layer = ref(null)
+    const backgroundGroup = ref(null)
+    const shapes = ref([])
+    const selectedShape = ref(null)
+    let isDrawing = false
+    let newShape = null
+    const lastClickTime = ref(0)
+    const doubleClickDelay = 300 // milliseconds
+    const startPoint = ref(null)
 
-    const stageConfig = ref({
-      width: window.innerWidth,
-      height: window.innerHeight,
-      backgroundColor: isDarkMode.value ? '#2c2c2c' : '#ffffff'
-    });
-    const showSizeWarning = ref(false);
-    const menuTop = ref(60); // Initial top position below the header
-    const menuLeft = ref(10);
-    const isDrawing = ref(false);
-    const currentLine = ref(null);
-    const selectedPattern = ref(null);
-    const isDragging = ref(false);
-
-    const stage = ref(null);
-    const floorLayer = ref(null);
-    const patternLayer = ref(null);
-    const materialsMenu = ref(null);
-
-    const walls = ref([]);
-    const patterns = ref([]);
-    const availablePatterns = ref([
-      { name: 'Hardwood', fill: '#8B4513', width: 50, height: 50 },
-      { name: 'Tile', fill: '#D3D3D3', width: 40, height: 40 },
-      { name: 'Carpet', fill: '#DEB887', width: 60, height: 60 },
-      { name: 'Laminate', fill: '#A0522D', width: 45, height: 45 },
-      { name: 'Vinyl', fill: '#708090', width: 55, height: 55 },
-    ]);
-
-    const gridSize = 20; // Size of each grid cell
-    const gridLayer = ref(null);
-
-    const gridLines = computed(() => {
-      const lines = [];
-      for (let i = 0; i <= stageConfig.value.width; i += gridSize) {
-        lines.push({
-          id: `vertical-${i}`,
-          points: [i, 0, i, stageConfig.value.height],
-          stroke: '#3a3a3a',
-          strokeWidth: 1,
-        });
-      }
-      for (let i = 0; i <= stageConfig.value.height; i += gridSize) {
-        lines.push({
-          id: `horizontal-${i}`,
-          points: [0, i, stageConfig.value.width, i],
-          stroke: '#3a3a3a',
-          strokeWidth: 1,
-        });
-      }
-      return lines;
-    });
-
-    const updateStageSize = () => {
-      stageConfig.value.width = window.innerWidth;
-      stageConfig.value.height = window.innerHeight - 100;
-      showSizeWarning.value = window.innerWidth < 768;
-      // Redraw grid when stage size changes
-      if (gridLayer.value) {
-        gridLayer.value.batchDraw();
-      }
-    };
-
-    const startDragging = () => {
-      isDragging.value = true;
-      document.addEventListener('mousemove', onDrag);
-      document.addEventListener('mouseup', stopDragging);
-    };
-
-    const onDrag = (event) => {
-      if (isDragging.value) {
-        menuTop.value = event.clientY;
-        menuLeft.value = event.clientX;
-      }
-    };
-
-    const stopDragging = () => {
-      isDragging.value = false;
-      document.removeEventListener('mousemove', onDrag);
-      document.removeEventListener('mouseup', stopDragging);
-    };
-
-    onMounted(() => {
-      window.addEventListener('resize', updateStageSize);
-      updateStageSize();
-      console.log('Stage ref:', stage.value);
-    });
-
-    onUnmounted(() => {
-      window.removeEventListener('resize', updateStageSize);
-    });
-
-    watchEffect(() => {
-      if (stage.value) {
-        stage.value = stage.value.getNode();
-      }
-      if (floorLayer.value) {
-        floorLayer.value = floorLayer.value.getNode();
-      }
-      if (patternLayer.value) {
-        patternLayer.value = patternLayer.value.getNode();
-      }
-    });
-
-    const handleMouseDown = (e) => {
-      const pos = e.target.getStage().getPointerPosition();
-      if (selectedPattern.value) {
-        placePattern(pos);
-      } else {
-        startDrawingWall(pos);
-      }
-    };
-
-    const handleMouseMove = (e) => {
-      if (!isDrawing.value) return;
-      const pos = e.target.getStage().getPointerPosition();
-      if (currentLine.value) {
-        currentLine.value.points = currentLine.value.points.slice(0, 2).concat([pos.x, pos.y]);
-      }
-    };
-
-    const handleMouseUp = () => {
-      isDrawing.value = false;
-    };
-
-    const startDrawingWall = (pos) => {
-      isDrawing.value = true;
-      currentLine.value = {
-        points: [pos.x, pos.y, pos.x, pos.y],
-        stroke: '#ffffff', // White color for visibility on dark background
-        strokeWidth: 2,
+    const getRelativePointerPosition = () => {
+      const pos = stage.value.getPointerPosition();
+      return {
+        x: (pos.x - stage.value.x()) / stage.value.scaleX(),
+        y: (pos.y - stage.value.y()) / stage.value.scaleY()
       };
-      walls.value.push(currentLine.value);
     };
 
-    const placePattern = (pos) => {
-      if (selectedPattern.value) {
-        const newPattern = {
-          ...selectedPattern.value,
-          x: Math.round(pos.x / gridSize) * gridSize,
-          y: Math.round(pos.y / gridSize) * gridSize,
-          draggable: true,
-        };
-        patterns.value.push(newPattern);
+    const initKonva = () => {
+      const container = konvaContainer.value;
+      stage.value = new Konva.Stage({
+        container: container,
+        width: container.offsetWidth,
+        height: container.offsetHeight,
+        scaleX: 1,
+        scaleY: 1
+      });
+      layer.value = new Konva.Layer()
+      backgroundGroup.value = new Konva.Group()
+      layer.value.add(backgroundGroup.value)
+      stage.value.add(layer.value)
+
+      // Log stage dimensions
+      console.log('Stage dimensions:', stage.value.width(), stage.value.height())
+    }
+
+    const loadPDFBackground = async () => {
+      try {
+        const db = await openDB('PDFStorage', 1)
+        const pdfFile = await db.get('pdfs', props.fileId)
+        if (pdfFile) {
+          const imageDataUrl = await convertPDFToImage(pdfFile)
+          const image = new Image()
+          image.onload = () => {
+            const backgroundImage = new Konva.Image({
+              image: image,
+              width: stage.value.width(),
+              height: stage.value.height(),
+            })
+            backgroundGroup.value.destroyChildren()
+            backgroundGroup.value.add(backgroundImage)
+            layer.value.batchDraw()
+          }
+          image.src = imageDataUrl
+        }
+      } catch (error) {
+        console.error('Error loading PDF background:', error)
+      }
+    }
+
+    const createShape = (type, config) => {
+      let shape;
+      if (type === 'rectangle') {
+        shape = new Konva.Rect({
+          ...config,
+          draggable: true
+        });
+      } else if (type === 'polygon') {
+        shape = new Konva.Line({
+          points: [config.x, config.y, config.x, config.y],
+          closed: true,
+          fill: props.selectedPattern.fill,
+          stroke: 'black',
+          strokeWidth: 2,
+          draggable: false
+        });
+      }
+
+      shape.on('click', () => selectShape(shape))
+      shape.on('dragstart', () => {
+        if (props.selectedTool === 'cursor') {
+          selectShape(shape)
+        }
+      })
+      shape.on('dragend', () => {
+        if (props.selectedTool === 'cursor') {
+          emit('shapeUpdated', shape)
+        }
+      })
+
+      shapes.value.push(shape)
+      layer.value.add(shape)
+      layer.value.batchDraw()
+
+      return shape
+    }
+
+    const selectShape = (shape) => {
+      if (selectedShape.value) {
+        selectedShape.value.stroke(null);
+        selectedShape.value.strokeWidth(0);
+      }
+      selectedShape.value = shape;
+      shape.stroke('blue');
+      shape.strokeWidth(2);
+      layer.value.batchDraw();
+      emit('shapeSelected', shape);
+    };
+
+    const deselectShape = () => {
+      if (selectedShape.value) {
+        selectedShape.value.stroke(null);
+        selectedShape.value.strokeWidth(0);
+        selectedShape.value = null;
+        layer.value.batchDraw();
+        emit('shapeSelected', null);
       }
     };
 
-    const handleDragMove = (e) => {
-      const shape = e.target;
-      const stepSize = 20; // Size of each grid cell
-      const newX = Math.round(shape.x() / stepSize) * stepSize;
-      const newY = Math.round(shape.y() / stepSize) * stepSize;
-      shape.position({ x: newX, y: newY });
-      patternLayer.value?.batchDraw();
+    const finishPolygon = () => {
+      if (props.selectedTool === 'polygon' && newShape) {
+        console.log('Finishing polygon');
+        const points = newShape.points().slice(0, -2);
+        newShape.points(points);
+        newShape.closed(true);
+        newShape.draggable(true);
+        isDrawing = false;
+        selectShape(newShape);
+        newShape = null;
+        layer.value.batchDraw();
+      }
+    };
+
+    const handleStageClick = () => {
+      const currentTime = new Date().getTime();
+      const timeSinceLastClick = currentTime - lastClickTime.value;
+
+      if (timeSinceLastClick < doubleClickDelay) {
+        console.log('Double click detected');
+        finishPolygon();
+      } else {
+        const pos = getRelativePointerPosition();
+        console.log('Single click at:', pos);
+
+        if (props.selectedTool === 'polygon') {
+          if (!isDrawing) {
+            isDrawing = true;
+            newShape = createShape('polygon', {
+              x: pos.x,
+              y: pos.y,
+            });
+          } else {
+            const points = newShape.points();
+            points.splice(points.length - 2, 0, pos.x, pos.y);
+            newShape.points(points);
+            layer.value.batchDraw();
+          }
+        } else if (props.selectedTool === 'rectangle') {
+          if (!isDrawing) {
+            isDrawing = true;
+            startPoint.value = pos;
+          }
+        } else if (props.selectedTool === 'cursor') {
+          if (stage.value.getIntersection(pos)) {
+            // If clicked on a shape, select it
+            const clickedShape = stage.value.getIntersection(pos).getParent();
+            selectShape(clickedShape);
+          } else {
+            // If clicked on empty space, deselect
+            deselectShape();
+          }
+        }
+      }
+
+      lastClickTime.value = currentTime;
+    };
+
+    const handleStageMouseMove = () => {
+      if (!isDrawing) return;
+
+      const pos = getRelativePointerPosition();
+      if (props.selectedTool === 'rectangle' && startPoint.value) {
+        if (!newShape) {
+          newShape = createShape('rectangle', {
+            x: startPoint.value.x,
+            y: startPoint.value.y,
+            width: 0,
+            height: 0,
+            fill: props.selectedPattern.fill,
+          });
+        }
+        newShape.width(pos.x - startPoint.value.x);
+        newShape.height(pos.y - startPoint.value.y);
+        layer.value.batchDraw();
+      } else if (props.selectedTool === 'polygon') {
+        const points = newShape.points();
+        points[points.length - 2] = pos.x;
+        points[points.length - 1] = pos.y;
+        newShape.points(points);
+      }
+      layer.value.batchDraw();
+    };
+
+    const handleStageMouseUp = () => {
+      if (isDrawing && props.selectedTool === 'rectangle') {
+        isDrawing = false;
+        startPoint.value = null;
+        if (newShape) {
+          newShape.draggable(true);
+          selectShape(newShape);
+          newShape = null;
+        }
+      }
     };
 
     const handleWheel = (e) => {
-      if (!stage.value) return; // Add this line to check if stage.value exists
+      e.evt.preventDefault()
+      const scaleBy = 1.1
+      const oldScale = stage.value.scaleX()
 
-      e.evt.preventDefault();
-      const scaleBy = 1.05;
-      const oldScale = stage.value.scaleX();
-      const pointer = stage.value.getPointerPosition();
-
+      const pointer = stage.value.getPointerPosition()
       const mousePointTo = {
         x: (pointer.x - stage.value.x()) / oldScale,
         y: (pointer.y - stage.value.y()) / oldScale,
-      };
+      }
 
-      const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
+      const newScale = e.evt.deltaY < 0 ? oldScale * scaleBy : oldScale / scaleBy
 
-      stage.value.scale({ x: newScale, y: newScale });
+      stage.value.scale({ x: newScale, y: newScale })
 
       const newPos = {
         x: pointer.x - mousePointTo.x * newScale,
         y: pointer.y - mousePointTo.y * newScale,
-      };
-      stage.value.position(newPos);
-      stage.value.batchDraw();
-    };
-
-    const selectPattern = (pattern) => {
-      selectedPattern.value = pattern;
-    };
-
-    const saveLayout = async () => {
-      const layoutData = {
-        walls: walls.value,
-        patterns: patterns.value,
-      };
-
-      try {
-        const response = await fetch('http://localhost:3030/save_layout', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(layoutData),
-        });
-        if (response.ok) {
-          console.log('Layout saved successfully');
-        } else {
-          console.error('Failed to save layout');
-        }
-      } catch (error) {
-        console.error('Error saving layout:', error);
       }
-    };
+      stage.value.position(newPos)
+      stage.value.batchDraw()
+    }
 
-    const loadLayout = async () => {
-      try {
-        const response = await fetch('http://localhost:3030/load_layout');
-        if (response.ok) {
-          const layoutData = await response.json();
-          walls.value = layoutData.walls;
-          patterns.value = layoutData.patterns;
-          floorLayer.value.batchDraw();
-          patternLayer.value.batchDraw();
-          console.log('Layout loaded successfully');
-        } else {
-          console.error('Failed to load layout');
-        }
-      } catch (error) {
-        console.error('Error loading layout:', error);
+    const handleKeyDown = (e) => {
+      if (e.code === 'Space') {
+        stage.value.container().style.cursor = 'grab'
+        stage.value.draggable(true)
       }
-    };
+    }
 
-    const invertColors = () => {
-      isDarkMode.value = !isDarkMode.value;
-      
-      const invertLayer = (layer) => {
-        layer.children.forEach((child) => {
-          if (typeof child.fill === 'function') {
-            const fill = child.fill();
-            if (fill) {
-              const rgb = Konva.Util.getRGB(fill);
-              child.fill(`rgb(${255 - rgb.r}, ${255 - rgb.g}, ${255 - rgb.b})`);
-            }
-          }
-          if (typeof child.stroke === 'function') {
-            const stroke = child.stroke();
-            if (stroke) {
-              const rgb = Konva.Util.getRGB(stroke);
-              child.stroke(`rgb(${255 - rgb.r}, ${255 - rgb.g}, ${255 - rgb.b})`);
-            }
-          }
-        });
-      };
+    const handleKeyUp = (e) => {
+      if (e.code === 'Space') {
+        stage.value.container().style.cursor = 'default'
+        stage.value.draggable(false)
+      }
+    }
 
+    const handleResize = () => {
       if (stage.value) {
-        stage.value.children.forEach((child) => {
-          if (child.getChildren) {
-            invertLayer(child);
-          }
-        });
-        stage.value.container().style.backgroundColor = isDarkMode.value ? '#2c2c2c' : '#ffffff';
-        stage.value.batchDraw();
+        const container = konvaContainer.value
+        stage.value.width(container.offsetWidth)
+        stage.value.height(container.offsetHeight)
+        stage.value.draw()
       }
-    };
+    }
 
-    const exportAsPNG = () => {
-      if (stage.value) {
-        const currentIsDarkMode = isDarkMode.value;
-        
-        // Temporarily switch to light mode if currently in dark mode
-        if (currentIsDarkMode) {
-          invertColors();
-        }
-
-        // Export the stage as a data URL
-        const dataURL = stage.value.toDataURL({ pixelRatio: 2 });
-
-        // Create a link element and trigger the download
-        const link = document.createElement('a');
-        link.download = 'floor-plan.png';
-        link.href = dataURL;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-        // Switch back to dark mode if it was in dark mode before
-        if (currentIsDarkMode) {
-          invertColors();
-        }
+    onMounted(() => {
+      initKonva()
+      if (props.fileId) {
+        loadPDFBackground()
       }
-    };
+      stage.value.on('mousedown touchstart', handleStageClick)
+      stage.value.on('mousemove touchmove', handleStageMouseMove)
+      stage.value.on('mouseup touchend', handleStageMouseUp)
+      stage.value.on('wheel', handleWheel)
+      window.addEventListener('keydown', handleKeyDown)
+      window.addEventListener('keyup', handleKeyUp)
+      window.addEventListener('resize', handleResize)
+    })
 
-    // Function to toggle dark mode (you can call this when user switches themes)
-    const toggleDarkMode = () => {
-      isDarkMode.value = !isDarkMode.value;
-      invertColors();
-      // Update the stage background color
-      if (stage.value) {
-        stage.value.container().style.backgroundColor = isDarkMode.value ? '#2c2c2c' : '#ffffff';
+    onUnmounted(() => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('resize', handleResize)
+    })
+
+    watch(() => props.fileId, (newFileId) => {
+      if (newFileId) {
+        loadPDFBackground()
       }
-    };
-
-    // Make sure to expose the toggleColorInversion method
-    defineExpose({ exportAsPNG, toggleDarkMode });
+    })
 
     return {
-      stageConfig,
-      showSizeWarning,
-      menuTop,
-      menuLeft,
-      materialsMenu,
-      startDragging,
-      walls,
-      patterns,
-      availablePatterns,
-      handleMouseDown,
-      handleMouseMove,
-      handleMouseUp,
-      handleDragMove,
-      handleWheel,
-      selectPattern,
-      saveLayout,
-      loadLayout,
-      selectedPattern,
-      gridLines,
-      exportAsPNG,
-      stage,
-      toggleDarkMode,
-    };
-  },
-});
+      konvaContainer,
+      // ... other returned values
+    }
+  }
+})
 </script>
 
 <style scoped>
-.floor-plan-container {
-  position: relative;
+.konva-container {
   width: 100%;
-  height: calc(100vh - 60px);
-  overflow: hidden;
-}
-
-.floor-plan-container.dark-mode {
-  background-color: #1e1e1e;
-  color: #ffffff;
-}
-
-.materials-menu {
-  position: absolute;
-  background-color: #2c2c2c;
-  border: 1px solid #4a4a4a;
-  padding: 10px;
-  border-radius: 5px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
-  z-index: 1000;
-}
-
-.menu-handle {
-  cursor: move;
-  padding: 5px;
-  background-color: #3a3a3a;
-  margin-bottom: 5px;
-  text-align: center;
-  font-weight: bold;
-}
-
-.size-warning {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background-color: rgba(46, 46, 46, 0.9);
-  padding: 20px;
-  border-radius: 5px;
-  text-align: center;
-  z-index: 1001;
-}
-
-button {
-  background-color: #4a4a4a;
-  color: #ffffff;
-  border: none;
-  padding: 5px 10px;
-  margin: 5px;
-  border-radius: 3px;
-  cursor: pointer;
-}
-
-button:hover {
-  background-color: #5a5a5a;
-}
-
-.materials-menu button {
-  display: block;
-  width: 100%;
-  margin-bottom: 5px;
-  padding: 5px;
-  background-color: #4a4a4a;
-  color: #ffffff;
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
-}
-
-.materials-menu button.selected {
-  background-color: #6a6a6a;
-  font-weight: bold;
-}
-
-.materials-menu button:hover {
-  background-color: #5a5a5a;
-}
-
-.controls {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1000; /* Ensure buttons are above the canvas */
-}
-
-button {
-  /* ... existing button styles ... */
+  height: 100vh; /* or a specific height */
 }
 </style>

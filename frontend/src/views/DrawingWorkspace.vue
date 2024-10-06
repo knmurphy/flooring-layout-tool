@@ -1,48 +1,76 @@
 <template>
-  <div class="workspace" :class="{ 'dark-mode': isDarkMode }">
-    <h2>Drawing Workspace</h2>
-    <FloorPlan @toggle-dark-mode="toggleDarkMode" />
+  <div class="drawing-workspace">
+    <FloorPlan 
+      :fileId="fileId" 
+      :selectedTool="selectedTool" 
+      :selectedPattern="selectedPattern" 
+      @shapeSelected="onShapeSelected"
+      @shapeUpdated="onShapeUpdated"
+    />
+    <Toolbox 
+      :selectedTool="selectedTool"
+      @toolSelected="onToolSelected" 
+      @patternSelected="onPatternSelected"
+    />
   </div>
 </template>
 
 <script>
-import { ref } from 'vue';
-import FloorPlan from '../components/FloorPlan.vue';
+import { defineComponent, ref, computed } from 'vue'
+import { useRoute } from 'vue-router'
+import FloorPlan from '@/components/FloorPlan.vue'
+import Toolbox from '@/components/Toolbox.vue'
 
-export default {
-  name: 'DrawingWorkspace',
-  components: {
-    FloorPlan,
-  },
+export default defineComponent({
+  components: { FloorPlan, Toolbox },
   setup() {
-    const isDarkMode = ref(true); // Start in dark mode by default
+    const route = useRoute()
+    const fileId = computed(() => route.params.fileId || '')
+    const selectedTool = ref('cursor')
+    const selectedPattern = ref({ name: 'Default', fill: '#cccccc' })
 
-    const toggleDarkMode = () => {
-      isDarkMode.value = !isDarkMode.value;
-    };
+    const onToolSelected = (tool) => {
+      selectedTool.value = tool
+    }
 
-    return { isDarkMode, toggleDarkMode };
-  },
-};
+    const onPatternSelected = (pattern) => {
+      selectedPattern.value = pattern
+    }
+
+    const onShapeSelected = (shape) => {
+      console.log('Shape selected:', shape)
+    }
+
+    const onShapeUpdated = (shape) => {
+      console.log('Shape updated:', shape)
+    }
+
+    return {
+      fileId,
+      selectedTool,
+      selectedPattern,
+      onToolSelected,
+      onPatternSelected,
+      onShapeSelected,
+      onShapeUpdated
+    }
+  }
+})
 </script>
 
 <style scoped>
-.workspace {
-  padding: 20px;
-  height: calc(100vh - 40px);
-  display: flex;
-  flex-direction: column;
-  background-color: #ffffff;
-  color: #000000;
-  transition: background-color 0.3s, color 0.3s;
+.drawing-workspace {
+  position: relative;
+  height: 100vh;
+  width: 100%;
 }
 
-.workspace.dark-mode {
-  background-color: #2c2c2c;
-  color: #ffffff;
+.konva-container {
+  z-index: 1;
 }
 
-h2 {
-  margin-bottom: 20px;
+.toolbox {
+  z-index: 2;
 }
 </style>
+

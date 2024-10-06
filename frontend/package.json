@@ -8,10 +8,16 @@
     "lint": "vue-cli-service lint"
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
+    "@mdi/font": "^7.4.47",
     "core-js": "^3.8.3",
+    "element-plus": "^2.8.4",
+    "idb": "^8.0.0",
+    "konva": "^9.3.15",
     "vue": "^3.2.13",
-    "vue-konva": "^3.0.2",
-    "vue-router": "^4.0.3"
+    "vue-konva": "^3.1.2",
+    "vue-router": "^4.0.3",
+    "vuetify": "^3.0.0"
   },
   "devDependencies": {
     "@babel/core": "^7.12.16",
@@ -21,6 +27,8 @@
     "@vue/cli-plugin-router": "~5.0.0",
     "@vue/cli-service": "~5.0.0",
     "eslint": "^7.32.0",
-    "eslint-plugin-vue": "^8.0.3"
+    "eslint-plugin-vue": "^8.0.3",
+    "file-loader": "^6.2.0",
+    "pdfjs-dist": "2.9.359"
   }
 }
