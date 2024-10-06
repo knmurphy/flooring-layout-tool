@@ -1,7 +1,6 @@
 <template>
   <div class="drawing-workspace">
     <FloorPlan 
-      ref="floorPlan"
       :fileId="fileId" 
       :selectedTool="selectedTool" 
       :selectedPattern="selectedPattern" 
@@ -12,66 +11,48 @@
       :selectedTool="selectedTool"
       @toolSelected="onToolSelected" 
       @patternSelected="onPatternSelected"
-      @updateShape="onUpdateShape"
     />
   </div>
 </template>
 
 <script>
-import { defineComponent, computed, ref } from 'vue'
+import { defineComponent, ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import FloorPlan from '@/components/FloorPlan.vue'
 import Toolbox from '@/components/Toolbox.vue'
 
 export default defineComponent({
-  name: 'DrawingWorkspace',
-  components: {
-    FloorPlan,
-    Toolbox
-  },
+  components: { FloorPlan, Toolbox },
   setup() {
     const route = useRoute()
     const fileId = computed(() => route.params.fileId || '')
     const selectedTool = ref('cursor')
     const selectedPattern = ref({ name: 'Default', fill: '#cccccc' })
-    const selectedShape = ref(null)
-    const floorPlan = ref(null)
 
     const onToolSelected = (tool) => {
       selectedTool.value = tool
-    }
-
-    const onShapeSelected = (shape) => {
-      selectedShape.value = shape
     }
 
     const onPatternSelected = (pattern) => {
       selectedPattern.value = pattern
     }
 
-    const onShapeUpdated = (shape) => {
-      console.log('Shape updated:', shape)
-      // Implement any necessary logic for shape updates
+    const onShapeSelected = (shape) => {
+      console.log('Shape selected:', shape)
     }
 
-    const onUpdateShape = (updates) => {
-      console.log('Shape updates:', updates)
-      if (floorPlan.value) {
-        floorPlan.value.updateSelectedShape(updates)
-      }
+    const onShapeUpdated = (shape) => {
+      console.log('Shape updated:', shape)
     }
 
     return {
       fileId,
       selectedTool,
       selectedPattern,
-      selectedShape,
-      floorPlan,
       onToolSelected,
-      onShapeSelected,
       onPatternSelected,
-      onShapeUpdated,
-      onUpdateShape
+      onShapeSelected,
+      onShapeUpdated
     }
   }
 })

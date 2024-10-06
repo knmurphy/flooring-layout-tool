@@ -73,12 +73,12 @@ export default defineComponent({
 <style scoped>
 .toolbox {
   position: absolute;
-  top: 10px;
-  left: 10px;
+  top: 20px;
+  left: 20px;
   z-index: 1000;
 }
 
-.is-active {
-  background-color: #ecf5ff;
+.tool-menu {
+  border-right: none;
 }
 </style>

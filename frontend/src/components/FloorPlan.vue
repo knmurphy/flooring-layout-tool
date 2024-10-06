@@ -1,5 +1,5 @@
 <template>
-  <div ref="konvaContainer" class="konva-container" tabindex="0" @keydown="handleKeyDown" @keyup="handleKeyUp"></div>
+  <div ref="konvaContainer" class="konva-container" tabindex="0"></div>
 </template>
 
 <script>
@@ -9,33 +9,28 @@ import { openDB } from 'idb'
 import { convertPDFToImage } from '../utils/pdfUtils'
 
 export default defineComponent({
-  name: 'FloorPlan',
   props: {
-    fileId: {
-      type: String,
-      required: true,
-      default: ''
-    },
-    selectedTool: {
-      type: String,
-      default: ''
-    },
-    selectedPattern: {
-      type: Object,
-      default: () => ({ name: 'Default', fill: '#cccccc' })
-    }
+    fileId: String,
+    selectedTool: String,
+    selectedPattern: Object
   },
+  emits: ['shapeSelected', 'shapeUpdated'],
   setup(props, { emit }) {
     const konvaContainer = ref(null)
     const stage = ref(null)
     const layer = ref(null)
     const backgroundGroup = ref(null)
-    let isDrawing = false
-    let startPoint = null
-    let currentShape = null
-    let isPanning = false
     const shapes = ref([])
     const selectedShape = ref(null)
+    let isDrawing = false
+    let newShape = null
+
+    const getRelativePointerPosition = (node) => {
+      const transform = node.getAbsoluteTransform().copy()
+      transform.invert()
+      const pos = node.getStage().getPointerPosition()
+      return transform.point(pos)
+    }
 
     const initKonva = () => {
       stage.value = new Konva.Stage({
@@ -47,185 +42,29 @@ export default defineComponent({
       backgroundGroup.value = new Konva.Group()
       layer.value.add(backgroundGroup.value)
       stage.value.add(layer.value)
+    }
 
-      // Enable zoom
-      const scaleBy = 1.1
-      stage.value.on('wheel', (e) => {
-        e.evt.preventDefault()
-        const oldScale = stage.value.scaleX()
-        const pointer = stage.value.getPointerPosition()
-        const mousePointTo = {
-          x: (pointer.x - stage.value.x()) / oldScale,
-          y: (pointer.y - stage.value.y()) / oldScale,
+    const loadPDFBackground = async () => {
+      try {
+        const db = await openDB('PDFStorage', 1)
+        const pdfFile = await db.get('pdfs', props.fileId)
+        if (pdfFile) {
+          const imageDataUrl = await convertPDFToImage(pdfFile)
+          const image = new Image()
+          image.onload = () => {
+            const backgroundImage = new Konva.Image({
+              image: image,
+              width: stage.value.width(),
+              height: stage.value.height(),
+            })
+            backgroundGroup.value.destroyChildren()
+            backgroundGroup.value.add(backgroundImage)
+            layer.value.batchDraw()
+          }
+          image.src = imageDataUrl
         }
-        const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy
-        stage.value.scale({ x: newScale, y: newScale })
-        const newPos = {
-          x: pointer.x - mousePointTo.x * newScale,
-          y: pointer.y - mousePointTo.y * newScale,
-        }
-        stage.value.position(newPos)
-        stage.value.batchDraw()
-      })
-
-      stage.value.on('mousedown touchstart', handleStageMouseDown)
-      stage.value.on('mousemove touchmove', handleStageMouseMove)
-      stage.value.on('mouseup touchend', handleStageMouseUp)
-      stage.value.on('dblclick', handleDblClick)  // Add double-click event listener
-      stage.value.on('click tap', handleStageClick)
-    }
-
-    const handleStageMouseDown = (e) => {
-      if (props.selectedTool === 'cursor') {
-        // If in cursor mode, handle selection
-        const clickedOnEmpty = e.target === stage.value
-        if (clickedOnEmpty) {
-          deselectShape()
-        } else {
-          const shape = e.target
-          selectShape(shape)
-        }
-      } else {
-        // If not in cursor mode, start drawing
-        startDrawing(e)
-      }
-    }
-
-    const handleStageMouseMove = (e) => {
-      if (props.selectedTool !== 'cursor' && isDrawing) {
-        draw(e)
-      }
-    }
-
-    const handleStageMouseUp = (e) => {
-      if (props.selectedTool !== 'cursor') {
-        endDrawing(e)
-      }
-    }
-
-    const startDrawing = (e) => {
-      if (isPanning) {
-        stage.value.draggable(true)
-        return
-      }
-
-      if (props.selectedTool === '') return
-      
-      // Prevent default behavior for touch events
-      if (e.evt.type.startsWith('touch')) {
-        e.evt.preventDefault()
-      }
-
-      const pos = stage.value.getRelativePointerPosition()
-
-      if (props.selectedTool === 'rectangle') {
-        isDrawing = true
-        startPoint = pos
-        currentShape = new Konva.Rect({
-          x: pos.x,
-          y: pos.y,
-          width: 0,
-          height: 0,
-          fill: props.selectedPattern.fill,
-          stroke: 'black',
-          strokeWidth: 2,
-        })
-        layer.value.add(currentShape)
-      } else if (props.selectedTool === 'polygon') {
-        if (!currentShape) {
-          isDrawing = true
-          currentShape = new Konva.Line({
-            points: [pos.x, pos.y],
-            fill: props.selectedPattern.fill,
-            stroke: 'black',
-            strokeWidth: 2,
-            closed: true,
-          })
-          layer.value.add(currentShape)
-        } else {
-          const points = currentShape.points()
-          points.push(pos.x)
-          points.push(pos.y)
-          currentShape.points(points)
-        }
-      }
-      layer.value.batchDraw()
-    }
-
-    const draw = (e) => {
-      if (!isDrawing || isPanning) return
-
-      // Prevent default behavior for touch events
-      if (e.evt.type.startsWith('touch')) {
-        e.evt.preventDefault()
-      }
-
-      const pos = stage.value.getRelativePointerPosition()
-
-      if (props.selectedTool === 'rectangle') {
-        const width = pos.x - startPoint.x
-        const height = pos.y - startPoint.y
-        currentShape.width(width)
-        currentShape.height(height)
-      } else if (props.selectedTool === 'polygon') {
-        const points = currentShape.points()
-        points[points.length - 2] = pos.x
-        points[points.length - 1] = pos.y
-        currentShape.points(points)
-      }
-      layer.value.batchDraw()
-    }
-
-    const endDrawing = (e) => {
-      if (isPanning) {
-        stage.value.draggable(false)
-        return
-      }
-
-      if (props.selectedTool === 'rectangle') {
-        isDrawing = false
-        currentShape = null
-      } else if (props.selectedTool === 'polygon') {
-        if (e.evt.button === 2 || (e.evt.button === 0 && e.evt.ctrlKey)) {  // Right-click or Ctrl+Click
-          isDrawing = false
-          currentShape = null
-        }
-      }
-    }
-
-    const handleDblClick = (e) => {
-      if (props.selectedTool === 'polygon' && currentShape) {
-        // Prevent default behavior
-        e.evt.preventDefault()
-
-        // Get the position of the double-click
-        const pos = stage.value.getRelativePointerPosition()
-
-        // Remove the last point (which is the same as the first point in a double-click)
-        const points = currentShape.points().slice(0, -2)
-
-        // Add the double-click position as the last point before closing
-        points.push(pos.x, pos.y)
-
-        currentShape.points(points)
-        
-        // Close the polygon
-        currentShape.closed(true)
-        layer.value.batchDraw()
-
-        // Reset drawing state
-        isDrawing = false
-        currentShape = null
-
-        // Optionally, you can emit an event or call a function to notify that a polygon has been completed
-        // For example: emit('polygonCompleted', currentShape)
-      }
-    }
-
-    const handleStageClick = (e) => {
-      if (e.target === stage.value) {
-        // Clicked on empty area, deselect
-        deselectShape()
+      } catch (error) {
+        console.error('Error loading PDF background:', error)
       }
     }
 
@@ -234,39 +73,45 @@ export default defineComponent({
       if (type === 'rectangle') {
         shape = new Konva.Rect({
           ...config,
-          draggable: true // Make the shape draggable
+          draggable: true
         })
       } else if (type === 'polygon') {
         shape = new Konva.Line({
           ...config,
-          closed: true,
-          draggable: true // Make the shape draggable
+          points: [],
+          closed: false,
+          draggable: false
         })
       }
 
-      shape.on('click tap', () => selectShape(shape))
-      
-      // Add dragmove and dragend event listeners
-      shape.on('dragmove', () => {
-        emit('shapeUpdated', shape)
+      shape.on('click', () => selectShape(shape))
+      shape.on('dragstart', () => {
+        if (props.selectedTool === 'cursor') {
+          selectShape(shape)
+        }
       })
-      
       shape.on('dragend', () => {
-        emit('shapeUpdated', shape)
-        detectMaterialTransitions() // Recalculate material transitions after dragging
+        if (props.selectedTool === 'cursor') {
+          emit('shapeUpdated', shape)
+        }
       })
 
       shapes.value.push(shape)
       layer.value.add(shape)
-      layer.value.draw()
+      layer.value.batchDraw()
+
+      return shape
     }
 
     const selectShape = (shape) => {
-      deselectShape()
+      if (selectedShape.value) {
+        selectedShape.value.stroke(null)
+        selectedShape.value.strokeWidth(0)
+      }
       selectedShape.value = shape
       shape.stroke('blue')
       shape.strokeWidth(2)
-      layer.value.draw()
+      layer.value.batchDraw()
       emit('shapeSelected', shape)
     }
 
@@ -275,98 +120,112 @@ export default defineComponent({
         selectedShape.value.stroke(null)
         selectedShape.value.strokeWidth(0)
         selectedShape.value = null
-        layer.value.draw()
+        layer.value.batchDraw()
         emit('shapeSelected', null)
       }
     }
 
-    const updateSelectedShape = (updates) => {
-      if (selectedShape.value) {
-        selectedShape.value.setAttrs(updates)
-        layer.value.draw()
-      }
-    }
-
-    const detectMaterialTransitions = () => {
-      // Implement collision detection between shapes
-      // This is a simplified version, you might need a more robust algorithm
-      for (let i = 0; i < shapes.value.length; i++) {
-        for (let j = i + 1; j < shapes.value.length; j++) {
-          if (shapes.value[i].getAttr('material') !== shapes.value[j].getAttr('material')) {
-            const intersection = Konva.Util.haveIntersection(
-              shapes.value[i].getClientRect(),
-              shapes.value[j].getClientRect()
-            )
-            if (intersection) {
-              addTransitionIcon(intersection)
-            }
-          }
+    const handleStageMouseDown = (e) => {
+      const pos = getRelativePointerPosition(stage.value)
+      if (props.selectedTool === 'cursor') {
+        if (e.target === stage.value) {
+          deselectShape()
         }
-      }
-    }
-
-    const addTransitionIcon = (position) => {
-      const icon = new Konva.Star({
-        x: position.x,
-        y: position.y,
-        numPoints: 5,
-        innerRadius: 10,
-        outerRadius: 20,
-        fill: 'yellow',
-        stroke: 'black',
-        strokeWidth: 2
-      })
-      layer.value.add(icon)
-      layer.value.draw()
-    }
-
-    const loadPDFBackground = async () => {
-      if (!props.fileId) {
-        console.warn('No fileId provided')
-        return
-      }
-
-      try {
-        const db = await openDB('PDFStorage', 1)
-        const file = await db.get('pdfs', props.fileId)
-        if (file) {
-          const { dataUrl, width, height } = await convertPDFToImage(file)
-          const backgroundImage = new Image()
-          backgroundImage.onload = () => {
-            const imageNode = new Konva.Image({
-              image: backgroundImage,
-              width: width,
-              height: height,
-            })
-            backgroundGroup.value.add(imageNode)
-            layer.value.batchDraw()
-          }
-          backgroundImage.src = dataUrl
+      } else if (props.selectedTool === 'rectangle') {
+        isDrawing = true
+        newShape = createShape('rectangle', {
+          x: pos.x,
+          y: pos.y,
+          width: 0,
+          height: 0,
+          fill: props.selectedPattern.fill,
+        })
+      } else if (props.selectedTool === 'polygon') {
+        if (!newShape) {
+          newShape = createShape('polygon', {
+            points: [pos.x, pos.y],
+            fill: props.selectedPattern.fill,
+            stroke: 'black',
+            strokeWidth: 2,
+          })
+          isDrawing = true
         } else {
-          console.warn(`No PDF found for fileId: ${props.fileId}`)
+          const points = newShape.points()
+          points.push(pos.x, pos.y)
+          newShape.points(points)
+          layer.value.batchDraw()
         }
-      } catch (error) {
-        console.error('Error loading PDF:', error)
       }
+    }
+
+    const handleStageMouseMove = () => {
+      if (!isDrawing || !newShape) return
+
+      const pos = getRelativePointerPosition(stage.value)
+      if (props.selectedTool === 'rectangle') {
+        newShape.width(pos.x - newShape.x())
+        newShape.height(pos.y - newShape.y())
+      } else if (props.selectedTool === 'polygon') {
+        const points = newShape.points()
+        points[points.length - 2] = pos.x
+        points[points.length - 1] = pos.y
+        newShape.points(points)
+      }
+      layer.value.batchDraw()
+    }
+
+    const handleStageMouseUp = () => {
+      if (isDrawing && props.selectedTool === 'rectangle') {
+        isDrawing = false
+        newShape = null
+      }
+    }
+
+    const handleStageDoubleClick = () => {
+      if (props.selectedTool === 'polygon' && newShape) {
+        newShape.closed(true)
+        newShape.draggable(true)
+        isDrawing = false
+        newShape = null
+        layer.value.batchDraw()
+      }
+    }
+
+    // Zoom and pan functions
+    const handleWheel = (e) => {
+      e.evt.preventDefault()
+      const scaleBy = 1.1
+      const oldScale = stage.value.scaleX()
+
+      const pointer = stage.value.getPointerPosition()
+      const mousePointTo = {
+        x: (pointer.x - stage.value.x()) / oldScale,
+        y: (pointer.y - stage.value.y()) / oldScale,
+      }
+
+      const newScale = e.evt.deltaY < 0 ? oldScale * scaleBy : oldScale / scaleBy
+
+      stage.value.scale({ x: newScale, y: newScale })
+
+      const newPos = {
+        x: pointer.x - mousePointTo.x * newScale,
+        y: pointer.y - mousePointTo.y * newScale,
+      }
+      stage.value.position(newPos)
+      stage.value.batchDraw()
     }
 
     const handleKeyDown = (e) => {
       if (e.code === 'Space') {
-        isPanning = true
-        if (stage.value) {
-          stage.value.container().style.cursor = 'grab'
-          stage.value.draggable(true)
-        }
+        stage.value.container().style.cursor = 'grab'
+        stage.value.draggable(true)
       }
     }
 
     const handleKeyUp = (e) => {
       if (e.code === 'Space') {
-        isPanning = false
-        if (stage.value) {
-          stage.value.container().style.cursor = 'default'
-          stage.value.draggable(false)
-        }
+        stage.value.container().style.cursor = 'default'
+        stage.value.draggable(false)
       }
     }
 
@@ -375,6 +234,11 @@ export default defineComponent({
       if (props.fileId) {
         loadPDFBackground()
       }
+      stage.value.on('mousedown touchstart', handleStageMouseDown)
+      stage.value.on('mousemove touchmove', handleStageMouseMove)
+      stage.value.on('mouseup touchend', handleStageMouseUp)
+      stage.value.on('dblclick', handleStageDoubleClick)
+      stage.value.on('wheel', handleWheel)
       window.addEventListener('keydown', handleKeyDown)
       window.addEventListener('keyup', handleKeyUp)
     })
@@ -391,15 +255,7 @@ export default defineComponent({
     })
 
     return {
-      konvaContainer,
-      handleStageMouseDown,
-      handleStageMouseMove,
-      handleStageMouseUp,
-      createShape,
-      updateSelectedShape,
-      detectMaterialTransitions,
-      handleKeyDown,
-      handleKeyUp
+      konvaContainer
     }
   }
 })
@@ -409,8 +265,6 @@ export default defineComponent({
 .konva-container {
   width: 100%;
   height: 100%;
-  position: absolute;
-  top: 0;
-  left: 0;
+  outline: none;
 }
 </style>
