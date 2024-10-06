@@ -1,89 +1,82 @@
-# Floor Plan Drawing Tool Enhancement Plan
+# Floor Plan Drawing Tool Enhancement Plan (Excalidraw-based)
 
 ## Technology Stack
-- Frontend Framework: Vue 3
-- UI Library: Element Plus
-- Canvas Library: Konva
+- Core Drawing Library: Excalidraw
+- Frontend Framework: React (as Excalidraw is React-based)
 - PDF Handling: PDF.js
-- State Management: Vue 3 Composition API (no Vuex)
-- Styling: Scoped CSS in Vue components
-- Build Tool: Vue CLI
+- Styling: CSS-in-JS (as used by Excalidraw)
+- Build Tool: Create React App or Next.js
 
-## 1. PDF Loading
-- [x] Add file input for PDF selection using Element Plus upload component
-- [x] Implement PDF to image conversion using PDF.js
-- [x] Display PDF image as background in Konva stage
+## 1. Excalidraw Integration
+- [ ] Set up a new React project
+- [ ] Install and integrate @excalidraw/excalidraw package
+- [ ] Implement basic Excalidraw canvas in the application
 
-## 2. Layer Management
-- [x] Create background layer for PDF image
-- [ ] Implement pattern layer
-- [x] Add drawing layer for user-created shapes
+## 2. PDF Integration
+- [ ] Add file input for PDF selection
+- [ ] Implement PDF to image conversion using PDF.js
+- [ ] Display PDF image as background in Excalidraw canvas
 
-## 3. Drawing Functionality
-- [x] Implement box drawing tool (click and drag) using Konva
-- [x] Create polygon drawing tool (multi-point click) using Konva
-- [ ] Add shape editing capabilities (move vertices, resize) using Konva transformers
+## 3. Custom Shape Library
+- [ ] Extend Excalidraw's shape library with floor plan specific elements (e.g., walls, doors, windows)
+- [ ] Implement custom controls for these new shapes
 
 ## 4. Pattern and Fill Management
-- [x] Develop a basic library of fill colors
-- [x] Create pattern selection tool using Element Plus menu
+- [ ] Develop a library of floor plan specific patterns and textures
+- [ ] Extend Excalidraw's fill capabilities to support these patterns
 - [ ] Implement pattern scale and rotation adjustments
 - [ ] Add transparency control for fills
 
-## 5. Shape Properties
-- [ ] Design and implement properties panel for selected shapes using Element Plus components
+## 5. Enhanced Properties Panel
+- [ ] Extend Excalidraw's properties panel to include floor plan specific attributes
 - [ ] Add controls for:
-  - [x] Fill color selection
+  - [ ] Custom pattern selection
   - [ ] Pattern scale and rotation
   - [ ] Fill transparency
-  - [ ] Outline color and thickness
+  - [ ] Floor plan specific properties (e.g., wall thickness, door swing)
 
-## 6. Rendering
-- [x] Utilize Konva's basic fill capabilities
-- [ ] Implement custom shaders for complex patterns (if needed)
-- [ ] Implement zoom and pan operations
-
-## 7. Export as PDF
-- [ ] Capture entire stage (PDF background + patterns + drawings)
-- [ ] Generate new PDF with jsPDF
-- [ ] Match new PDF dimensions and resolution to original
+## 6. PDF Export
+- [ ] Implement PDF export functionality that includes the background PDF and drawn elements
 - [ ] Ensure correct pattern rendering in export
+- [ ] Match exported PDF dimensions and resolution to original
 
-## 8. User Interface
-- [x] Add tools for shape drawing (rectangle and polygon)
-- [x] Design and implement color selection interface (Element Plus menu)
-- [ ] Create properties panel for shape attribute adjustments using Element Plus
-- [x] Develop controls for PDF loading using Element Plus components
-- [ ] Implement PDF export functionality
+## 7. Multi-page PDF Support
+- [ ] Implement navigation between multiple PDF pages
+- [ ] Allow drawing on each page separately
 
-## 9. Performance Optimization
-- [ ] Optimize rendering
-- [ ] Implement caching for frequently used patterns/colors
-- [ ] Ensure efficient handling of large PDFs
+## 8. Performance Optimization
+- [ ] Optimize rendering for large floor plans
+- [ ] Implement efficient handling of large PDFs
 
-## 10. Undo/Redo Functionality
-- [ ] Implement undo/redo for all drawing and editing actions using custom state management
+## 9. Labeling and Annotation
+- [ ] Extend Excalidraw's text capabilities for floor plan specific labeling
+- [ ] Implement area calculation for closed shapes
 
-## 11. Shape Management
-- [x] Implement basic shape selection
-- [ ] Implement shape deselection
-- [ ] Add ability to delete shapes
-- [ ] Implement shape dragging and resizing
+## 10. Collaboration Features
+- [ ] Implement real-time collaboration using Excalidraw's collaboration feature
 
-## 12. Labeling
-- [ ] Add labels to shapes
-- [ ] Implement label editing functionality
-- [ ] Create a shape list dialog for bulk label editing
+## 11. Undo/Redo and Version History
+- [ ] Utilize Excalidraw's built-in undo/redo functionality
+- [ ] Implement version history for floor plans
+
+## 12. Mobile Responsiveness
+- [ ] Ensure the tool works well on various screen sizes and touch devices
+
+## 13. Accessibility
+- [ ] Implement keyboard shortcuts for common actions
+- [ ] Ensure the application is screen reader friendly
+
+## 14. Dark Mode
+- [ ] Implement dark mode toggle using Excalidraw's theming capabilities
 
 ## Key Challenges to Address
-- Efficient rendering of complex patterns in Konva
-- Smooth interaction when editing shapes with patterns
-- Ensuring pattern quality at different zoom levels
-- Correct pattern rendering in PDF export
-- Maintaining PDF resolution and dimensions
-- Handling multi-page PDFs
-- Ensuring good performance with large files
+- Seamlessly integrating PDF background with Excalidraw canvas
+- Extending Excalidraw's shape library and properties panel without breaking its core functionality
+- Ensuring custom patterns and textures render correctly in both the canvas and exported PDF
+- Optimizing performance for large, complex floor plans
+- Maintaining PDF resolution and dimensions in export
 
-## Dark Mode
-- [ ] Implement dark mode using Element Plus theming capabilities
-- [ ] Ensure consistent dark mode styling across custom components
+## Future Enhancements
+- 3D view generation from 2D floor plan
+- Integration with popular CAD software
+- AI-assisted room layout suggestions
