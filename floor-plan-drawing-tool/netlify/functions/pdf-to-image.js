@@ -24,14 +24,14 @@ exports.handler = async (event, context) => {
         const pdfDoc = await PDFDocument.load(fileBuffer);
         const page = await pdfDoc.getPage(0);
 
-        const pngImage = await page.render({
+        const svgImage = await page.render({
           width: 2048,
           height: 2048,
+          format: 'svg',
         }).toBuffer();
 
-        const optimizedImage = await sharp(pngImage)
-          .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
-          .png({ quality: 90, compressionLevel: 9 })
+        const optimizedImage = await sharp(svgImage)
+          .svg({ omitMetadata: true })
           .toBuffer();
 
         const imageBase64 = optimizedImage.toString('base64');
